@@ -9,10 +9,11 @@ ENV NODE_ENV=production
 
 COPY package.json package-lock.json* ./
 
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install
 
 COPY . .
 
-RUN npm run build
+RUN npx prisma generate --schema prisma/postgres/schema.prisma && npm run build
+RUN npm prune --omit=dev && npm cache clean --force
 
-CMD ["npm", "run", "docker-start"]
+CMD ["sh", "-c", "npm run setup:render && npm run start"]

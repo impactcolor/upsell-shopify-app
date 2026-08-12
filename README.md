@@ -1,4 +1,24 @@
-# Shopify App Template - React Router
+# Shopify Upsell App
+
+This project is based on Shopify's official React Router app template. See the
+[upsell architecture](docs/architecture.md) for the product model, discount
+enforcement design, post-purchase extension flow, and delivery phases.
+
+## Test the post-purchase offer locally
+
+1. Run `shopify app dev` and press `p` to open Shopify's Dev Console.
+2. Open the `post-purchase-upsell` preview link.
+3. In the embedded app, create an offer and select **Make live**.
+4. Complete a checkout containing exactly one matching product line by using a
+   development-store test payment method such as Shopify's Bogus Gateway.
+
+The offer appears after payment and before the Thank You page. One matching
+line still qualifies when its quantity is greater than one; two separate
+matching lines suppress the offer. The feature does not use a Liquid snippet.
+
+Shopify CLI supplies `SHOPIFY_APP_URL` while the local tunnel is running. When
+the web app is deployed, configure the same environment variable with the
+public HTTPS origin before building and deploying the extension.
 
 This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using [React Router](https://reactrouter.com/). It was forked from the [Shopify Remix app template](https://github.com/Shopify/shopify-app-template-remix) and converted to React Router.
 

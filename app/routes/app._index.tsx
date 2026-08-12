@@ -4,7 +4,12 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useFetcher, useLoaderData, useRouteError } from "react-router";
+import {
+  useFetcher,
+  useLoaderData,
+  useRevalidator,
+  useRouteError,
+} from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -18,9 +23,7 @@ import { authenticate } from "../shopify.server";
 
 type TriggerType = "PRODUCT" | "COLLECTION";
 type UpsellAction =
-  | "MATCHING_VARIANT"
-  | "MATCHING_PRODUCT_SELECT_VARIANT"
-  | "SPECIFIC_VARIANT";
+  "MATCHING_VARIANT" | "MATCHING_PRODUCT_SELECT_VARIANT" | "SPECIFIC_VARIANT";
 type DiscountType = "PERCENTAGE" | "FIXED_AMOUNT" | "FIXED_PRICE";
 
 type SelectedTrigger = {
@@ -40,24 +43,39 @@ type SelectedVariant = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const [offers, currencyResponse] = await Promise.all([
-    prisma.upsellOffer.findMany({
-      where: { shop: session.shop },
-      orderBy: { createdAt: "desc" },
-    }),
-    admin.graphql(`#graphql
+  const [offers, currencyResponse, postPurchaseStatusResponse] =
+    await Promise.all([
+      prisma.upsellOffer.findMany({
+        where: { shop: session.shop },
+        orderBy: { createdAt: "desc" },
+      }),
+      admin.graphql(`#graphql
       query ShopCurrency {
         shop {
           currencyCode
         }
       }
     `),
-  ]);
+      admin.graphql(`#graphql
+      query PostPurchaseActivationStatus {
+        app {
+          isPostPurchaseAppInUse
+        }
+      }
+    `),
+    ]);
   const currencyJson = await currencyResponse.json();
+  const postPurchaseStatusJson = await postPurchaseStatusResponse.json();
+  const postPurchaseAppInUse =
+    postPurchaseStatusJson.data?.app?.isPostPurchaseAppInUse;
+  const shopHandle = session.shop.replace(/\.myshopify\.com$/i, "");
 
   return {
     offers: offers.map(serializeOffer),
     currencyCode: currencyJson.data?.shop.currencyCode ?? "USD",
+    postPurchaseAppInUse:
+      typeof postPurchaseAppInUse === "boolean" ? postPurchaseAppInUse : null,
+    checkoutSettingsUrl: `https://admin.shopify.com/store/${encodeURIComponent(shopHandle)}/settings/checkout`,
   };
 };
 
@@ -83,7 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (result.count === 0) return { ok: false, message: "Offer not found" };
     return {
       ok: true,
-      message: intent === "activate" ? "Offer is live" : "Offer paused",
+      message: intent === "activate" ? "Offer activated" : "Offer paused",
     };
   }
 
@@ -103,16 +121,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function OffersPage() {
-  const { currencyCode, offers } = useLoaderData<typeof loader>();
+  const { checkoutSettingsUrl, currencyCode, offers, postPurchaseAppInUse } =
+    useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const revalidator = useRevalidator();
   const shopify = useAppBridge();
   const [triggerType, setTriggerType] = useState<TriggerType>("PRODUCT");
   const [trigger, setTrigger] = useState<SelectedTrigger | null>(null);
   const [upsellAction, setUpsellAction] =
     useState<UpsellAction>("MATCHING_VARIANT");
   const [offer, setOffer] = useState<SelectedVariant | null>(null);
-  const [discountType, setDiscountType] =
-    useState<DiscountType>("FIXED_PRICE");
+  const [discountType, setDiscountType] = useState<DiscountType>("FIXED_PRICE");
   const isSubmitting = fetcher.state !== "idle";
 
   useEffect(() => {
@@ -132,7 +151,11 @@ export default function OffersPage() {
       });
       const collection = selected?.[0];
       if (collection) {
-        setTrigger({ id: collection.id, title: collection.title, imageUrl: "" });
+        setTrigger({
+          id: collection.id,
+          title: collection.title,
+          imageUrl: "",
+        });
       }
       return;
     }
@@ -176,6 +199,60 @@ export default function OffersPage() {
 
   return (
     <s-page heading="Upsell offers">
+      {postPurchaseAppInUse === false ? (
+        <s-banner
+          heading="Setup required: enable Upsell after checkout"
+          tone="warning"
+        >
+          <s-stack direction="block" gap="base">
+            <s-paragraph>
+              Shopify has not selected Upsell as this store&apos;s post-purchase
+              app. Active offers will not appear until you complete this step.
+            </s-paragraph>
+            <s-stack direction="inline" gap="small">
+              <s-button
+                href={checkoutSettingsUrl}
+                target="_blank"
+                variant="primary"
+              >
+                Open checkout settings
+              </s-button>
+              <s-button
+                type="button"
+                onClick={() => revalidator.revalidate()}
+                {...(revalidator.state !== "idle" ? { loading: true } : {})}
+              >
+                Refresh status
+              </s-button>
+            </s-stack>
+            <s-text color="subdued">
+              In Post-purchase page, select Upsell and save your checkout
+              settings. Only one post-purchase app can be active at a time.
+            </s-text>
+          </s-stack>
+        </s-banner>
+      ) : postPurchaseAppInUse === true ? (
+        <s-banner heading="Post-purchase is enabled" tone="success">
+          Upsell is selected as this store&apos;s post-purchase app. Active
+          offers are eligible to appear after qualifying checkouts.
+        </s-banner>
+      ) : (
+        <s-banner
+          heading="Post-purchase status could not be verified"
+          tone="info"
+        >
+          <s-stack direction="block" gap="base">
+            <s-paragraph>
+              Check that Upsell is selected in Shopify&apos;s Post-purchase page
+              settings before testing an offer.
+            </s-paragraph>
+            <s-button href={checkoutSettingsUrl} target="_blank">
+              Open checkout settings
+            </s-button>
+          </s-stack>
+        </s-banner>
+      )}
+
       <s-section heading="Create an offer">
         <s-paragraph>
           Choose what must appear in the completed purchase, then choose what
@@ -283,9 +360,7 @@ export default function OffersPage() {
                     label="Upsell item"
                     value={upsellAction}
                     onChange={(event) =>
-                      setUpsellAction(
-                        event.currentTarget.value as UpsellAction,
-                      )
+                      setUpsellAction(event.currentTarget.value as UpsellAction)
                     }
                   >
                     <s-option value="MATCHING_VARIANT">
@@ -432,7 +507,10 @@ export default function OffersPage() {
                               : "info"
                         }
                       >
-                        {item.status.toLowerCase()}
+                        {item.status === "ACTIVE" &&
+                        postPurchaseAppInUse !== true
+                          ? "active · setup required"
+                          : item.status.toLowerCase()}
                       </s-badge>
                     </s-stack>
                     <s-text>
@@ -453,13 +531,18 @@ export default function OffersPage() {
                       <input type="hidden" name="id" value={item.id} />
                       <s-button
                         type="submit"
-                        variant={item.status === "ACTIVE" ? "tertiary" : "primary"}
+                        variant={
+                          item.status === "ACTIVE" ? "tertiary" : "primary"
+                        }
                         disabled={isSubmitting}
                       >
-                        {item.status === "ACTIVE" ? "Pause" : "Make live"}
+                        {item.status === "ACTIVE" ? "Pause" : "Activate"}
                       </s-button>
                     </fetcher.Form>
-                    <s-button href={`/app/offers/${item.id}`} variant="secondary">
+                    <s-button
+                      href={`/app/offers/${item.id}`}
+                      variant="secondary"
+                    >
                       Edit
                     </s-button>
                     <fetcher.Form method="post">
@@ -483,11 +566,28 @@ export default function OffersPage() {
       </s-section>
 
       <s-section slot="aside" heading="Activation status">
-        <s-paragraph>
-          Live offers are eligible to appear after checkout when this app is
-          selected as the store&apos;s post-purchase app. Paused and draft offers
-          are never shown.
-        </s-paragraph>
+        <s-stack direction="block" gap="small">
+          <s-badge
+            tone={
+              postPurchaseAppInUse === true
+                ? "success"
+                : postPurchaseAppInUse === false
+                  ? "warning"
+                  : "info"
+            }
+          >
+            {postPurchaseAppInUse === true
+              ? "Post-purchase enabled"
+              : postPurchaseAppInUse === false
+                ? "Setup incomplete"
+                : "Status unavailable"}
+          </s-badge>
+          <s-paragraph>
+            Active offers are eligible to appear only when Upsell is selected as
+            the store&apos;s post-purchase app. Paused and draft offers are
+            never shown.
+          </s-paragraph>
+        </s-stack>
       </s-section>
     </s-page>
   );
@@ -503,7 +603,8 @@ const upsellActionLabel = (offer: {
   offerProductTitle: string | null;
   offerVariantTitle: string | null;
 }) => {
-  if (offer.upsellAction === "MATCHING_VARIANT") return "Same variant purchased";
+  if (offer.upsellAction === "MATCHING_VARIANT")
+    return "Same variant purchased";
   if (offer.upsellAction === "MATCHING_PRODUCT_SELECT_VARIANT") {
     return "Same product, customer chooses variant";
   }

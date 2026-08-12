@@ -24,7 +24,7 @@ import {
 // Post-purchase extensions run on Shopify's checkout worker, where the app
 // server environment is unavailable. During local development this must be the
 // HTTPS tunnel printed by `shopify app dev`; production uses the hosted origin.
-const APP_URL = "https://eat-exclusively-surprise-including.trycloudflare.com";
+const APP_URL = "https://upsell-shopify-app.onrender.com";
 
 extend(
   "Checkout::PostPurchase::ShouldRender",

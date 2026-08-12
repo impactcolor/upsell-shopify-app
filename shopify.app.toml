@@ -2,7 +2,7 @@
 
 client_id = "ca2013a5bbbf64041d3f935062172716"
 name = "Upsell"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://upsell-shopify-app.onrender.com"
 embedded = true
 
 [build]
@@ -33,4 +33,4 @@ uri = "/webhooks/compliance"
 scopes = "read_products"
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [ "https://upsell-shopify-app.onrender.com/api/auth" ]

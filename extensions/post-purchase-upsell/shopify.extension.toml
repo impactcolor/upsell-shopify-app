@@ -2,6 +2,12 @@ name = "post-purchase-upsell"
 type = "checkout_post_purchase"
 uid = "605817b1-8b84-d458-6e77-878311e962ab7fca9c3b"
 
+[capabilities]
+network_access = true
+
+[network_access]
+allowed_urls = ["https://upsell-shopify-app.onrender.com"]
+
 # [[metafields]]
 # namespace = "my-namespace"
 # key = "my-key"

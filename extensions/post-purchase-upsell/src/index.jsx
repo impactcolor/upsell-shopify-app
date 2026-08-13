@@ -26,8 +26,6 @@ import {
 // HTTPS tunnel printed by `shopify app dev`; production uses the hosted origin.
 const APP_URL = "https://upsell-shopify-app.onrender.com";
 const DIAGNOSTIC_SHOP = "citylocsdev.myshopify.com";
-// Temporary routing test: bypass the server and all offer eligibility logic.
-const STATIC_POST_PURCHASE_TEST = true;
 
 async function renderDiagnostic(storage, message) {
   try {
@@ -41,10 +39,6 @@ async function renderDiagnostic(storage, message) {
 extend(
   "Checkout::PostPurchase::ShouldRender",
   async ({ inputData, storage }) => {
-    if (STATIC_POST_PURCHASE_TEST) {
-      return { render: true };
-    }
-
     const diagnosticShop = inputData.shop.domain === DIAGNOSTIC_SHOP;
 
     if (!APP_URL) {
@@ -118,23 +112,6 @@ render("Checkout::PostPurchase::Render", () => <App />);
 
 export function App() {
   const extensionInput = useExtensionInput();
-
-  if (STATIC_POST_PURCHASE_TEST) {
-    return (
-      <BlockStack spacing="loose">
-        <CalloutBanner title="Post-purchase test">
-          PLACEHOLDER TEXT HERE
-        </CalloutBanner>
-        <TextBlock>
-          The static Upsell post-purchase extension loaded successfully.
-        </TextBlock>
-        <Button submit onPress={() => extensionInput.done()}>
-          Continue to order confirmation
-        </Button>
-      </BlockStack>
-    );
-  }
-
   const initialData = extensionInput.storage.initialData;
 
   if (!initialData?.offer) {

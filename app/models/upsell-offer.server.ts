@@ -6,7 +6,7 @@ import type {
   UpsellOffer,
 } from "@prisma/client";
 
-import prisma from "../db.server";
+import prisma from "../db.server.js";
 
 const requiredString = (formData: FormData, key: string) => {
   const value = formData.get(key);
@@ -19,6 +19,22 @@ const requiredString = (formData: FormData, key: string) => {
 const optionalString = (formData: FormData, key: string) => {
   const value = formData.get(key);
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+};
+
+const stringWithDefault = (
+  formData: FormData,
+  key: string,
+  defaultValue: string,
+) => {
+  if (!formData.has(key)) return defaultValue;
+  return requiredString(formData, key);
+};
+
+const limitedString = (value: string, label: string, maxLength: number) => {
+  if (value.length > maxLength) {
+    throw new Error(`${label} must be ${maxLength} characters or fewer`);
+  }
+  return value;
 };
 
 const decimalNumber = (formData: FormData, key: string) => {
@@ -66,6 +82,44 @@ export const parseOfferForm = (formData: FormData) => {
   const discountValue = decimalNumber(formData, "discountValue");
   const offerPrice = optionalDecimalNumber(formData, "offerPrice");
   const maxQuantity = integerNumber(formData, "maxQuantity");
+  const headline = limitedString(
+    stringWithDefault(
+      formData,
+      "headline",
+      "It’s not too late to add another",
+    ),
+    "Headline",
+    80,
+  );
+  const offerDescription = limitedString(
+    stringWithDefault(
+      formData,
+      "offerDescription",
+      "Get another qualifying item with this exclusive post-purchase offer.",
+    ),
+    "Offer description",
+    240,
+  );
+  const acceptButtonText = limitedString(
+    stringWithDefault(formData, "acceptButtonText", "Add to my order"),
+    "Accept-button text",
+    40,
+  );
+  const declineButtonText = limitedString(
+    stringWithDefault(formData, "declineButtonText", "No thanks"),
+    "Decline-button text",
+    40,
+  );
+  const customMessageValue = optionalString(formData, "customMessage");
+  const customMessage = customMessageValue
+    ? limitedString(customMessageValue, "Custom message", 200)
+    : null;
+  const rawBannerBackground = optionalString(formData, "bannerBackground");
+  const bannerBackground =
+    rawBannerBackground === "TRANSPARENT" ? "TRANSPARENT" : "SECONDARY";
+  const showProductImage = formData.has("contentSettingsPresent")
+    ? formData.getAll("showProductImage").includes("true")
+    : true;
 
   if (discountValue <= 0) {
     throw new Error("Discount value must be greater than zero");
@@ -126,6 +180,13 @@ export const parseOfferForm = (formData: FormData) => {
     discountType,
     discountValue,
     maxQuantity,
+    headline,
+    offerDescription,
+    acceptButtonText,
+    declineButtonText,
+    customMessage,
+    showProductImage,
+    bannerBackground,
     status,
   };
 };

@@ -69,6 +69,15 @@ export type PostPurchaseOfferPayload = {
     id: string;
     title: string;
     maxQuantity: number;
+    content: {
+      headline: string;
+      description: string;
+      acceptButtonText: string;
+      declineButtonText: string;
+      customMessage: string | null;
+      showProductImage: boolean;
+      bannerBackground: "secondary" | "transparent";
+    };
     candidates: OfferCandidate[];
   };
 };
@@ -159,6 +168,18 @@ export const getEligiblePostPurchaseOffer = async ({
           id: offer.id,
           title: offer.name,
           maxQuantity: offer.maxQuantity,
+          content: {
+            headline: offer.headline,
+            description: offer.offerDescription,
+            acceptButtonText: offer.acceptButtonText,
+            declineButtonText: offer.declineButtonText,
+            customMessage: offer.customMessage,
+            showProductImage: offer.showProductImage,
+            bannerBackground:
+              offer.bannerBackground === "TRANSPARENT"
+                ? "transparent"
+                : "secondary",
+          },
           candidates,
         },
       };

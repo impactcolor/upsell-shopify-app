@@ -83,6 +83,13 @@ model UpsellOffer {
   discountType         DiscountType @default(PERCENTAGE)
   discountValue        Decimal
   maxQuantity          Int          @default(1)
+  headline             String       @default("It’s not too late to add another")
+  offerDescription     String       @default("Get another qualifying item with this exclusive post-purchase offer.")
+  acceptButtonText     String       @default("Add to my order")
+  declineButtonText    String       @default("No thanks")
+  customMessage        String?
+  showProductImage     Boolean      @default(true)
+  bannerBackground     String       @default("SECONDARY")
   status               OfferStatus  @default(DRAFT)
   shopifyDiscountId    String?
   createdAt            DateTime     @default(now())

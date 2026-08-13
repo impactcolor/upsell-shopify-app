@@ -147,6 +147,20 @@ function OfferApp({ extensionInput }) {
   const { storage, inputData, calculateChangeset, applyChangeset, done } =
     extensionInput;
   const { offer } = storage.initialData;
+  const content = {
+    headline: offer.content?.headline || "It’s not too late to add another",
+    description:
+      offer.content?.description ||
+      "Get another qualifying item with this exclusive post-purchase offer.",
+    acceptButtonText: offer.content?.acceptButtonText || "Add to my order",
+    declineButtonText: offer.content?.declineButtonText || "No thanks",
+    customMessage: offer.content?.customMessage || "",
+    showProductImage: offer.content?.showProductImage !== false,
+    bannerBackground:
+      offer.content?.bannerBackground === "transparent"
+        ? "transparent"
+        : "secondary",
+  };
   const [candidateId, setCandidateId] = useState(offer.candidates[0].id);
   const [quantity, setQuantity] = useState(1);
   const [calculatedPurchase, setCalculatedPurchase] = useState(null);
@@ -297,23 +311,37 @@ function OfferApp({ extensionInput }) {
     0,
   );
   const total = calculatedPurchase?.totalOutstandingSet?.presentmentMoney?.amount;
+  const layoutMedia = content.showProductImage
+    ? [
+        { viewportSize: "small", sizes: [1, 0, 1] },
+        { viewportSize: "medium", sizes: [300, 30, 1] },
+        { viewportSize: "large", sizes: [400, 38, 1] },
+      ]
+    : [
+        { viewportSize: "small", sizes: [0, 0, 1] },
+        { viewportSize: "medium", sizes: [0, 0, 1] },
+        { viewportSize: "large", sizes: [0, 0, 1] },
+      ];
 
   return (
     <BlockStack spacing="loose">
-      <CalloutBanner title="It’s not too late to add another">
-        Get another qualifying item with this exclusive post-purchase offer.
+      <CalloutBanner
+        title={content.headline}
+        background={content.bannerBackground}
+      >
+        {content.description}
       </CalloutBanner>
+
+      {content.customMessage ? (
+        <TextBlock>{content.customMessage}</TextBlock>
+      ) : null}
 
       <Layout
         maxInlineSize={0.95}
-        media={[
-          { viewportSize: "small", sizes: [1, 0, 1] },
-          { viewportSize: "medium", sizes: [300, 30, 1] },
-          { viewportSize: "large", sizes: [400, 38, 1] },
-        ]}
+        media={layoutMedia}
       >
         <View>
-          {candidate.imageUrl ? (
+          {content.showProductImage && candidate.imageUrl ? (
             <Image
               source={candidate.imageUrl}
               description={candidate.productTitle}
@@ -391,10 +419,10 @@ function OfferApp({ extensionInput }) {
             disabled={loading || Boolean(error) || !calculatedPurchase}
             onPress={acceptOffer}
           >
-            Add to my order
+            {content.acceptButtonText}
           </Button>
           <Button disabled={loading} onPress={declineOffer}>
-            No thanks
+            {content.declineButtonText}
           </Button>
         </BlockStack>
       </Layout>

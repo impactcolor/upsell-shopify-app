@@ -235,6 +235,7 @@ export default function OfferDetailsPage() {
           name="offerCurrencyCode"
           value={savedOffer.offerCurrencyCode}
         />
+        <input type="hidden" name="contentSettingsPresent" value="true" />
 
         <s-section heading="Offer details">
           <s-stack direction="block" gap="base">
@@ -402,6 +403,80 @@ export default function OfferDetailsPage() {
                 variant and calculate the Shopify changeset from its price.
               </s-banner>
             )}
+          </s-stack>
+        </s-section>
+
+        <s-section heading="Offer design and content">
+          <s-stack direction="block" gap="base">
+            <s-paragraph>
+              Customize the message while keeping Shopify&apos;s accessible checkout
+              layout and store checkout branding.
+            </s-paragraph>
+
+            <s-text-field
+              name="headline"
+              label="Headline"
+              value={savedOffer.headline}
+              maxLength={80}
+              required
+            />
+
+            <s-text-area
+              name="offerDescription"
+              label="Offer description"
+              value={savedOffer.offerDescription}
+              rows={3}
+              maxLength={240}
+              required
+            />
+
+            <s-text-area
+              name="customMessage"
+              label="Optional custom message"
+              value={savedOffer.customMessage ?? ""}
+              rows={2}
+              maxLength={200}
+            />
+
+            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+              <s-text-field
+                name="acceptButtonText"
+                label="Accept-button text"
+                value={savedOffer.acceptButtonText}
+                maxLength={40}
+                required
+              />
+              <s-text-field
+                name="declineButtonText"
+                label="Decline-button text"
+                value={savedOffer.declineButtonText}
+                maxLength={40}
+                required
+              />
+            </s-grid>
+
+            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+              <s-select
+                name="bannerBackground"
+                label="Banner style"
+                value={savedOffer.bannerBackground}
+              >
+                <s-option value="SECONDARY">Soft checkout background</s-option>
+                <s-option value="TRANSPARENT">Minimal / transparent</s-option>
+              </s-select>
+              <s-checkbox
+                name="showProductImage"
+                value="true"
+                label="Show product image"
+                defaultChecked={savedOffer.showProductImage}
+              />
+            </s-grid>
+
+            <s-banner heading="Checkout branding" tone="info">
+              Shopify applies the store&apos;s checkout colors and typography. The
+              app offers only supported banner treatments; arbitrary CSS and
+              custom colors are not injected into checkout.
+            </s-banner>
 
             {fetcher.data?.ok === false && (
               <s-banner heading="Could not update offer" tone="critical">

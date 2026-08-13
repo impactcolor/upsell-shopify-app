@@ -25,12 +25,30 @@ import {
 // server environment is unavailable. During local development this must be the
 // HTTPS tunnel printed by `shopify app dev`; production uses the hosted origin.
 const APP_URL = "https://upsell-shopify-app.onrender.com";
+const DIAGNOSTIC_SHOP = "citylocsdev.myshopify.com";
+
+async function renderDiagnostic(storage, message) {
+  try {
+    await storage.update({ diagnostic: { message } });
+  } catch (caught) {
+    console.error("Could not store post-purchase diagnostic data.", caught);
+  }
+  return { render: true };
+}
 
 extend(
   "Checkout::PostPurchase::ShouldRender",
   async ({ inputData, storage }) => {
+    const diagnosticShop = inputData.shop.domain === DIAGNOSTIC_SHOP;
+
     if (!APP_URL) {
       console.error("SHOPIFY_APP_URL is required for post-purchase offers.");
+      if (diagnosticShop) {
+        return renderDiagnostic(
+          storage,
+          "The post-purchase extension ran, but its app URL is missing.",
+        );
+      }
       return { render: false };
     }
 
@@ -54,13 +72,37 @@ extend(
         }),
       });
 
-      if (!response.ok) return { render: false };
+      if (!response.ok) {
+        if (diagnosticShop) {
+          return renderDiagnostic(
+            storage,
+            `The post-purchase extension ran, but the offer service returned HTTP ${response.status}.`,
+          );
+        }
+        return { render: false };
+      }
       const payload = await response.json();
-      if (!payload.offer?.candidates?.length) return { render: false };
+      if (!payload.offer?.candidates?.length) {
+        if (diagnosticShop) {
+          return renderDiagnostic(
+            storage,
+            "The post-purchase extension ran, but no eligible offer was returned.",
+          );
+        }
+        return { render: false };
+      }
 
       await storage.update(payload);
       return { render: true };
-    } catch {
+    } catch (caught) {
+      if (diagnosticShop) {
+        return renderDiagnostic(
+          storage,
+          `The post-purchase extension ran, but could not load the offer: ${
+            caught instanceof Error ? caught.message : "network request failed"
+          }`,
+        );
+      }
       return { render: false };
     }
   },
@@ -70,7 +112,35 @@ render("Checkout::PostPurchase::Render", () => <App />);
 
 export function App() {
   const extensionInput = useExtensionInput();
+  const initialData = extensionInput.storage.initialData;
+
+  if (!initialData?.offer) {
+    return (
+      <DiagnosticApp
+        extensionInput={extensionInput}
+        message={
+          initialData?.diagnostic?.message ||
+          "The post-purchase extension opened, but no offer data was available."
+        }
+      />
+    );
+  }
+
   return <OfferApp extensionInput={extensionInput} />;
+}
+
+function DiagnosticApp({ extensionInput, message }) {
+  return (
+    <BlockStack spacing="loose">
+      <CalloutBanner title="Upsell diagnostic">
+        The CityLocs post-purchase extension is running.
+      </CalloutBanner>
+      <TextBlock>{message}</TextBlock>
+      <Button submit onPress={() => extensionInput.done()}>
+        Continue to order confirmation
+      </Button>
+    </BlockStack>
+  );
 }
 
 function OfferApp({ extensionInput }) {

@@ -204,7 +204,7 @@ export const signPostPurchaseChangeset = ({
       changes: [{ ...change, quantity }],
     },
     secret,
-    { algorithm: "HS256", noTimestamp: true },
+    { algorithm: "HS256" },
   );
 };
 

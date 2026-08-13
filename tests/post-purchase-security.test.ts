@@ -48,10 +48,12 @@ const changeset = signPostPurchaseChangeset({
 });
 const verified = jwt.verify(changeset, process.env.SHOPIFY_API_SECRET!) as {
   iss: string;
+  iat: number;
   sub: string;
   changes: Array<{ type: string; variantId: number; quantity: number }>;
 };
 assert.equal(verified.iss, "test-api-key");
+assert.equal(typeof verified.iat, "number");
 assert.equal(verified.sub, "purchase-reference");
 assert.deepEqual(verified.changes, [
   {

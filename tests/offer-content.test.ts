@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 
+process.env.SHOPIFY_API_KEY = "test-api-key";
+process.env.SHOPIFY_API_SECRET = "test-api-secret";
+process.env.SHOPIFY_APP_URL = "https://example.test";
+
 const { parseOfferForm } = await import(
   "../app/models/upsell-offer.server.js"
+);
+const { sanitizeLineItemProperties } = await import(
+  "../app/models/post-purchase-offer.server.js"
 );
 
 const baseForm = () => {
@@ -65,5 +72,18 @@ assert.equal(custom.savingsStyle, "SUBTLE");
 const invalidForm = baseForm();
 invalidForm.set("headline", "x".repeat(81));
 assert.throws(() => parseOfferForm(invalidForm), /80 characters or fewer/);
+
+assert.deepEqual(
+  sanitizeLineItemProperties([
+    { key: "Engraving", value: " Omar " },
+    { key: "_internal_id", value: "secret" },
+    { key: "Blank", value: " " },
+    { key: "Gift message", value: "Happy birthday" },
+  ]),
+  [
+    { key: "Engraving", value: "Omar" },
+    { key: "Gift message", value: "Happy birthday" },
+  ],
+);
 
 console.log("Offer content tests passed");

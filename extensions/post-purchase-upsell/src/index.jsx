@@ -148,6 +148,9 @@ function OfferApp({ extensionInput }) {
   const { storage, inputData, calculateChangeset, applyChangeset, done } =
     extensionInput;
   const { offer } = storage.initialData;
+  const purchasedLineProperties = Array.isArray(offer.purchasedLineProperties)
+    ? offer.purchasedLineProperties
+    : [];
   const content = {
     headline: offer.content?.headline || "It’s not too late to add another",
     description:
@@ -383,6 +386,24 @@ function OfferApp({ extensionInput }) {
           </Text>
         </TextBlock>
       </TextContainer>
+
+      {purchasedLineProperties.length > 0 ? (
+        <BlockStack spacing="tight">
+          <TextBlock emphasized>Original item details</TextBlock>
+          {purchasedLineProperties.map((property) => (
+            <Tiles key={`${property.key}:${property.value}`}>
+              <TextBlock subdued>{property.key}</TextBlock>
+              <TextContainer alignment="trailing">
+                <TextBlock>{property.value}</TextBlock>
+              </TextContainer>
+            </Tiles>
+          ))}
+          <TextBlock subdued>
+            These details are from your original purchase and are not
+            automatically applied to the additional item.
+          </TextBlock>
+        </BlockStack>
+      ) : null}
 
       {content.showVariantSelector && offer.candidates.length > 1 ? (
         <Select

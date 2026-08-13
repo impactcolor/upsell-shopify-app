@@ -64,11 +64,17 @@ type OfferCandidate = {
   selectionToken: string;
 };
 
+export type PurchasedLineProperty = {
+  key: string;
+  value: string;
+};
+
 export type PostPurchaseOfferPayload = {
   offer: null | {
     id: string;
     title: string;
     maxQuantity: number;
+    purchasedLineProperties: PurchasedLineProperty[];
     content: {
       headline: string;
       description: string;
@@ -113,7 +119,10 @@ export const getEligiblePostPurchaseOffer = async ({
     if (offer.offerVariantId) requestedVariantIds.add(offer.offerVariantId);
   }
 
-  const catalog = await loadCatalog(shop, [...requestedVariantIds]);
+  const [catalog, propertiesByVariantId] = await Promise.all([
+    loadCatalog(shop, [...requestedVariantIds]),
+    loadPurchasedLineProperties(shop, referenceId),
+  ]);
   console.info("[post-purchase] Loaded catalog", {
     shop,
     requestedVariantCount: requestedVariantIds.size,
@@ -172,6 +181,10 @@ export const getEligiblePostPurchaseOffer = async ({
           id: offer.id,
           title: offer.name,
           maxQuantity: offer.maxQuantity,
+          purchasedLineProperties:
+            propertiesByVariantId.get(
+              normalizeShopifyId(eligibility.line.variantId),
+            ) ?? [],
           content: {
             headline: offer.headline,
             description: offer.offerDescription,
@@ -452,6 +465,105 @@ const loadCatalog = async (shop: string, variantIds: string[]) => {
 
   return { byVariantId, byProductId, variantsByProductId };
 };
+
+const loadPurchasedLineProperties = async (
+  shop: string,
+  checkoutToken: string,
+) => {
+  const propertiesByVariantId = new Map<string, PurchasedLineProperty[]>();
+
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    const response = await admin.graphql(
+      `#graphql
+        query PurchasedLineProperties($query: String!) {
+          orders(first: 5, query: $query) {
+            nodes {
+              checkoutToken
+              lineItems(first: 100) {
+                nodes {
+                  variant {
+                    id
+                  }
+                  customAttributes {
+                    key
+                    value
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+      { variables: { query: `checkout_token:${quoteSearchValue(checkoutToken)}` } },
+    );
+    const json = (await response.json()) as {
+      errors?: unknown;
+      data?: {
+        orders?: {
+          nodes: Array<{
+            checkoutToken?: string | null;
+            lineItems: {
+              nodes: Array<{
+                variant?: { id: string } | null;
+                customAttributes: Array<{
+                  key: string;
+                  value?: string | null;
+                }>;
+              }>;
+            };
+          }>;
+        };
+      };
+    };
+    if (json.errors) {
+      console.warn("[post-purchase] Unable to load line-item properties", {
+        shop,
+        reason: "Shopify returned GraphQL errors",
+      });
+      return propertiesByVariantId;
+    }
+
+    const order = json.data?.orders?.nodes.find(
+      (node) => node.checkoutToken === checkoutToken,
+    );
+    for (const line of order?.lineItems.nodes ?? []) {
+      if (!line.variant?.id) continue;
+      propertiesByVariantId.set(
+        normalizeShopifyId(line.variant.id),
+        sanitizeLineItemProperties(line.customAttributes),
+      );
+    }
+  } catch (error) {
+    // Properties improve the offer but must never prevent or delay an otherwise
+    // eligible post-purchase experience.
+    console.warn("[post-purchase] Unable to load line-item properties", {
+      shop,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+
+  return propertiesByVariantId;
+};
+
+export const sanitizeLineItemProperties = (
+  properties: Array<{ key: string; value?: string | null }>,
+): PurchasedLineProperty[] =>
+  properties
+    .map((property) => ({
+      key: property.key.trim().slice(0, 80),
+      value: property.value?.trim().slice(0, 240) ?? "",
+    }))
+    .filter(
+      (property) =>
+        property.key !== "" &&
+        property.value !== "" &&
+        !property.key.startsWith("_"),
+    )
+    .slice(0, 10);
+
+const quoteSearchValue = (value: string) =>
+  `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 
 const isTrustedChange = (value: unknown): value is {
   type: "add_variant";

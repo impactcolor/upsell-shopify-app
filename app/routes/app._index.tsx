@@ -69,12 +69,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const postPurchaseAppInUse =
     postPurchaseStatusJson.data?.app?.isPostPurchaseAppInUse;
   const shopHandle = session.shop.replace(/\.myshopify\.com$/i, "");
+  const grantedScopes = new Set(
+    (session.scope ?? "").split(",").map((scope) => scope.trim()),
+  );
 
   return {
     offers: offers.map(serializeOffer),
     currencyCode: currencyJson.data?.shop.currencyCode ?? "USD",
     postPurchaseAppInUse:
       typeof postPurchaseAppInUse === "boolean" ? postPurchaseAppInUse : null,
+    orderDetailsAccess: grantedScopes.has("read_orders"),
     checkoutSettingsUrl: `https://admin.shopify.com/store/${encodeURIComponent(shopHandle)}/settings/checkout`,
   };
 };
@@ -121,8 +125,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function OffersPage() {
-  const { checkoutSettingsUrl, currencyCode, offers, postPurchaseAppInUse } =
-    useLoaderData<typeof loader>();
+  const {
+    checkoutSettingsUrl,
+    currencyCode,
+    offers,
+    orderDetailsAccess,
+    postPurchaseAppInUse,
+  } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
   const shopify = useAppBridge();
@@ -199,6 +208,18 @@ export default function OffersPage() {
 
   return (
     <s-page heading="Upsell offers">
+      {orderDetailsAccess ? (
+        <s-banner heading="Line-item details are enabled" tone="success">
+          Buyer-visible custom properties from the qualifying purchased item
+          can appear on its post-purchase offer.
+        </s-banner>
+      ) : (
+        <s-banner heading="Permission update required" tone="warning">
+          Reopen or reinstall Upsell and approve access to order details before
+          custom line-item properties can appear on offers.
+        </s-banner>
+      )}
+
       {postPurchaseAppInUse === false ? (
         <s-banner
           heading="Setup required: enable Upsell after checkout"

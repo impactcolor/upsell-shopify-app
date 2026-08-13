@@ -32,15 +32,48 @@ type SelectedVariant = {
   imageUrl: string;
   price: string;
 };
+type ProductImageOption = { url: string; label: string };
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const offer = await prisma.upsellOffer.findFirst({
     where: { id: params.id, shop: session.shop },
   });
 
   if (!offer) throw new Response("Offer not found", { status: 404 });
-  return { offer: serializeOffer(offer) };
+
+  let imageOptions: ProductImageOption[] = [];
+  if (offer.offerProductId) {
+    const response = await admin.graphql(
+      `#graphql
+        query OfferProductImages($id: ID!) {
+          product(id: $id) {
+            images(first: 20) {
+              nodes {
+                url
+                altText
+              }
+            }
+          }
+        }
+      `,
+      { variables: { id: offer.offerProductId } },
+    );
+    const json = (await response.json()) as {
+      data?: {
+        product?: {
+          images: { nodes: Array<{ url: string; altText?: string | null }> };
+        } | null;
+      };
+    };
+    imageOptions =
+      json.data?.product?.images.nodes.map((image, index) => ({
+        url: image.url,
+        label: image.altText?.trim() || `Product image ${index + 1}`,
+      })) ?? [];
+  }
+
+  return { offer: serializeOffer(offer), imageOptions };
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -70,7 +103,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function OfferDetailsPage() {
-  const { offer: savedOffer } = useLoaderData<typeof loader>();
+  const { offer: savedOffer, imageOptions: savedImageOptions } =
+    useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const [triggerType, setTriggerType] = useState<TriggerType>(
@@ -103,6 +137,35 @@ export default function OfferDetailsPage() {
     savedOffer.discountType,
   );
   const [discountValue, setDiscountValue] = useState(savedOffer.discountValue);
+  const [imageOptions, setImageOptions] =
+    useState<ProductImageOption[]>(savedImageOptions);
+  const [headline, setHeadline] = useState(savedOffer.headline);
+  const [offerDescription, setOfferDescription] = useState(
+    savedOffer.offerDescription,
+  );
+  const [customMessage, setCustomMessage] = useState(
+    savedOffer.customMessage ?? "",
+  );
+  const [confirmationMessage, setConfirmationMessage] = useState(
+    savedOffer.confirmationMessage,
+  );
+  const [showProductImage, setShowProductImage] = useState(
+    savedOffer.showProductImage,
+  );
+  const [showVariantSelector, setShowVariantSelector] = useState(
+    savedOffer.showVariantSelector,
+  );
+  const [showQuantitySelector, setShowQuantitySelector] = useState(
+    savedOffer.showQuantitySelector,
+  );
+  const [bannerBackground, setBannerBackground] = useState(
+    savedOffer.bannerBackground,
+  );
+  const [bannerAlignment, setBannerAlignment] = useState(
+    savedOffer.bannerAlignment,
+  );
+  const [imagePosition, setImagePosition] = useState(savedOffer.imagePosition);
+  const [savingsStyle, setSavingsStyle] = useState(savedOffer.savingsStyle);
 
   useEffect(() => {
     if (fetcher.data?.message) {
@@ -166,12 +229,20 @@ export default function OfferDetailsPage() {
     });
     const variant = selected?.[0];
     if (!variant?.product.id) return;
+    const productImages = variant.product.images ?? [];
+    const nextImageOptions = productImages.map((image, index) => ({
+      url: image.originalSrc,
+      label: image.altText?.trim() || `Product image ${index + 1}`,
+    }));
+    const selectedImageUrl =
+      variant.image?.originalSrc ?? nextImageOptions[0]?.url ?? "";
+    setImageOptions(nextImageOptions);
     setOffer({
       id: variant.id,
       title: variant.title,
       productId: variant.product.id,
       productTitle: variant.product.title ?? variant.displayName,
-      imageUrl: variant.image?.originalSrc ?? "",
+      imageUrl: selectedImageUrl,
       price: variant.price,
     });
   };
@@ -323,6 +394,28 @@ export default function OfferDetailsPage() {
                       <s-button type="button" onClick={chooseOffer}>
                         {offer ? "Change" : "Select"} upsell variant
                       </s-button>
+                      {offer && imageOptions.length > 0 && (
+                        <s-select
+                          label="Product image"
+                          value={offer.imageUrl}
+                          onChange={(event) =>
+                            setOffer((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    imageUrl: event.currentTarget.value,
+                                  }
+                                : current,
+                            )
+                          }
+                        >
+                          {imageOptions.map((image) => (
+                            <s-option key={image.url} value={image.url}>
+                              {image.label}
+                            </s-option>
+                          ))}
+                        </s-select>
+                      )}
                     </>
                   ) : (
                     <s-text color="subdued">
@@ -409,14 +502,15 @@ export default function OfferDetailsPage() {
         <s-section heading="Offer design and content">
           <s-stack direction="block" gap="base">
             <s-paragraph>
-              Customize the message while keeping Shopify&apos;s accessible checkout
-              layout and store checkout branding.
+              Customize the supported offer area while keeping Shopify&apos;s
+              accessible checkout shell and store branding.
             </s-paragraph>
 
             <s-text-field
               name="headline"
               label="Headline"
-              value={savedOffer.headline}
+              value={headline}
+              onInput={(event) => setHeadline(event.currentTarget.value)}
               maxLength={80}
               required
             />
@@ -424,7 +518,10 @@ export default function OfferDetailsPage() {
             <s-text-area
               name="offerDescription"
               label="Offer description"
-              value={savedOffer.offerDescription}
+              value={offerDescription}
+              onInput={(event) =>
+                setOfferDescription(event.currentTarget.value)
+              }
               rows={3}
               maxLength={240}
               required
@@ -433,49 +530,172 @@ export default function OfferDetailsPage() {
             <s-text-area
               name="customMessage"
               label="Optional custom message"
-              value={savedOffer.customMessage ?? ""}
+              value={customMessage}
+              onInput={(event) => setCustomMessage(event.currentTarget.value)}
               rows={2}
               maxLength={200}
             />
 
-            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
-              <s-text-field
-                name="acceptButtonText"
-                label="Accept-button text"
-                value={savedOffer.acceptButtonText}
-                maxLength={40}
-                required
-              />
-              <s-text-field
-                name="declineButtonText"
-                label="Decline-button text"
-                value={savedOffer.declineButtonText}
-                maxLength={40}
-                required
-              />
-            </s-grid>
+            <s-text-field
+              name="confirmationMessage"
+              label="Message after acceptance"
+              value={confirmationMessage}
+              onInput={(event) =>
+                setConfirmationMessage(event.currentTarget.value)
+              }
+              maxLength={160}
+              required
+            />
 
             <s-grid gridTemplateColumns="1fr 1fr" gap="base">
               <s-select
                 name="bannerBackground"
                 label="Banner style"
-                value={savedOffer.bannerBackground}
+                value={bannerBackground}
+                onChange={(event) =>
+                  setBannerBackground(event.currentTarget.value)
+                }
               >
                 <s-option value="SECONDARY">Soft checkout background</s-option>
                 <s-option value="TRANSPARENT">Minimal / transparent</s-option>
               </s-select>
+              <s-select
+                name="bannerAlignment"
+                label="Banner alignment"
+                value={bannerAlignment}
+                onChange={(event) =>
+                  setBannerAlignment(event.currentTarget.value)
+                }
+              >
+                <s-option value="CENTER">Centered</s-option>
+                <s-option value="LEADING">Left aligned</s-option>
+              </s-select>
+            </s-grid>
+
+            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+              <s-select
+                name="imagePosition"
+                label="Image placement"
+                value={imagePosition}
+                onChange={(event) =>
+                  setImagePosition(event.currentTarget.value)
+                }
+              >
+                <s-option value="LEFT">Beside offer details</s-option>
+                <s-option value="ABOVE">Above offer details</s-option>
+              </s-select>
+              <s-select
+                name="savingsStyle"
+                label="Savings presentation"
+                value={savingsStyle}
+                onChange={(event) =>
+                  setSavingsStyle(event.currentTarget.value)
+                }
+              >
+                <s-option value="HIGHLIGHTED">Highlighted</s-option>
+                <s-option value="SUBTLE">Subtle</s-option>
+              </s-select>
+            </s-grid>
+
+            <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="base">
               <s-checkbox
                 name="showProductImage"
                 value="true"
                 label="Show product image"
-                defaultChecked={savedOffer.showProductImage}
+                checked={showProductImage}
+                onChange={(event) =>
+                  setShowProductImage(event.currentTarget.checked)
+                }
+              />
+              <s-checkbox
+                name="showVariantSelector"
+                value="true"
+                label="Show variant selector"
+                checked={showVariantSelector}
+                onChange={(event) =>
+                  setShowVariantSelector(event.currentTarget.checked)
+                }
+              />
+              <s-checkbox
+                name="showQuantitySelector"
+                value="true"
+                label="Show quantity selector"
+                checked={showQuantitySelector}
+                onChange={(event) =>
+                  setShowQuantitySelector(event.currentTarget.checked)
+                }
               />
             </s-grid>
 
-            <s-banner heading="Checkout branding" tone="info">
-              Shopify applies the store&apos;s checkout colors and typography. The
-              app offers only supported banner treatments; arbitrary CSS and
-              custom colors are not injected into checkout.
+            <s-box padding="base" border="base" borderRadius="base">
+              <s-stack direction="block" gap="base">
+                <s-text type="strong">Buyer preview</s-text>
+                <s-box
+                  padding="base"
+                  background={
+                    bannerBackground === "SECONDARY"
+                      ? "subdued"
+                      : "transparent"
+                  }
+                  borderRadius="base"
+                >
+                  <s-stack direction="block" gap="small">
+                    <s-heading>{headline || "Offer headline"}</s-heading>
+                    <s-text>
+                      {offerDescription || "Offer description"}
+                    </s-text>
+                  </s-stack>
+                </s-box>
+                {customMessage && <s-text>{customMessage}</s-text>}
+                {showProductImage && offer?.imageUrl && (
+                  <s-thumbnail
+                    src={offer.imageUrl}
+                    alt={offer.productTitle}
+                    size="large"
+                  />
+                )}
+                <s-text type="strong">
+                  {offer?.productTitle || "Upsell product"}
+                </s-text>
+                {previewPrice !== null && offer && (
+                  <s-text
+                    type={
+                      savingsStyle === "HIGHLIGHTED" ? "strong" : "generic"
+                    }
+                    tone={
+                      savingsStyle === "HIGHLIGHTED" ? "success" : "neutral"
+                    }
+                  >
+                    {formatMoney(
+                      Number(offer.price),
+                      savedOffer.offerCurrencyCode,
+                    )}{" "}
+                    → {formatMoney(previewPrice, savedOffer.offerCurrencyCode)}
+                  </s-text>
+                )}
+                {showVariantSelector && (
+                  <s-select label="Variant" disabled>
+                    <s-option>{offer?.title || "Selected variant"}</s-option>
+                  </s-select>
+                )}
+                {showQuantitySelector && savedOffer.maxQuantity > 1 && (
+                  <s-select label="Quantity" disabled>
+                    <s-option>1</s-option>
+                  </s-select>
+                )}
+                <s-button variant="primary" disabled>
+                  Pay now • calculated total
+                </s-button>
+                <s-button variant="tertiary" disabled>
+                  Decline upsell offer
+                </s-button>
+              </s-stack>
+            </s-box>
+
+            <s-banner heading="Shopify-controlled checkout actions" tone="info">
+              Shopify applies checkout colors and typography. The payment
+              button uses “Pay now • total” and the secondary action uses
+              “Decline upsell offer”; those labels cannot be customized.
             </s-banner>
 
             {fetcher.data?.ok === false && (

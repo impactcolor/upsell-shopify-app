@@ -72,11 +72,15 @@ export type PostPurchaseOfferPayload = {
     content: {
       headline: string;
       description: string;
-      acceptButtonText: string;
-      declineButtonText: string;
       customMessage: string | null;
+      confirmationMessage: string;
       showProductImage: boolean;
+      showVariantSelector: boolean;
+      showQuantitySelector: boolean;
       bannerBackground: "secondary" | "transparent";
+      bannerAlignment: "center" | "leading";
+      imagePosition: "left" | "above";
+      savingsStyle: "highlighted" | "subtle";
     };
     candidates: OfferCandidate[];
   };
@@ -171,14 +175,21 @@ export const getEligiblePostPurchaseOffer = async ({
           content: {
             headline: offer.headline,
             description: offer.offerDescription,
-            acceptButtonText: offer.acceptButtonText,
-            declineButtonText: offer.declineButtonText,
             customMessage: offer.customMessage,
+            confirmationMessage: offer.confirmationMessage,
             showProductImage: offer.showProductImage,
+            showVariantSelector: offer.showVariantSelector,
+            showQuantitySelector: offer.showQuantitySelector,
             bannerBackground:
               offer.bannerBackground === "TRANSPARENT"
                 ? "transparent"
                 : "secondary",
+            bannerAlignment:
+              offer.bannerAlignment === "LEADING" ? "leading" : "center",
+            imagePosition:
+              offer.imagePosition === "ABOVE" ? "above" : "left",
+            savingsStyle:
+              offer.savingsStyle === "SUBTLE" ? "subtle" : "highlighted",
           },
           candidates,
         },
@@ -278,7 +289,10 @@ const createCandidate = ({
     id: variant.id,
     productTitle: variant.product.title,
     variantTitle: variant.title,
-    imageUrl: variant.imageUrl,
+    imageUrl:
+      offer.upsellAction === "SPECIFIC_VARIANT" && offer.offerImageUrl
+        ? offer.offerImageUrl
+        : variant.imageUrl,
     originalPrice: variant.price,
     currencyCode: offer.offerCurrencyCode,
     discountTitle: discount.title,

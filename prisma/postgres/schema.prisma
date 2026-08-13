@@ -82,8 +82,14 @@ model UpsellOffer {
   acceptButtonText     String       @default("Add to my order")
   declineButtonText    String       @default("No thanks")
   customMessage        String?
+  confirmationMessage  String       @default("Your order has been updated.")
   showProductImage     Boolean      @default(true)
+  showVariantSelector  Boolean      @default(true)
+  showQuantitySelector Boolean      @default(true)
   bannerBackground     String       @default("SECONDARY")
+  bannerAlignment      String       @default("CENTER")
+  imagePosition        String       @default("LEFT")
+  savingsStyle         String       @default("HIGHLIGHTED")
   status               OfferStatus  @default(DRAFT)
   shopifyDiscountId    String?
   createdAt            DateTime     @default(now())

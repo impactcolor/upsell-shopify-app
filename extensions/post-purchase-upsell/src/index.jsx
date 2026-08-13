@@ -6,6 +6,7 @@ import {
   render,
   useExtensionInput,
   BlockStack,
+  Banner,
   Button,
   CalloutBanner,
   Heading,
@@ -152,20 +153,29 @@ function OfferApp({ extensionInput }) {
     description:
       offer.content?.description ||
       "Get another qualifying item with this exclusive post-purchase offer.",
-    acceptButtonText: offer.content?.acceptButtonText || "Add to my order",
-    declineButtonText: offer.content?.declineButtonText || "No thanks",
     customMessage: offer.content?.customMessage || "",
+    confirmationMessage:
+      offer.content?.confirmationMessage || "Your order has been updated.",
     showProductImage: offer.content?.showProductImage !== false,
+    showVariantSelector: offer.content?.showVariantSelector !== false,
+    showQuantitySelector: offer.content?.showQuantitySelector !== false,
     bannerBackground:
       offer.content?.bannerBackground === "transparent"
         ? "transparent"
         : "secondary",
+    bannerAlignment:
+      offer.content?.bannerAlignment === "leading" ? "leading" : "center",
+    imagePosition:
+      offer.content?.imagePosition === "above" ? "above" : "left",
+    savingsStyle:
+      offer.content?.savingsStyle === "subtle" ? "subtle" : "highlighted",
   };
   const [candidateId, setCandidateId] = useState(offer.candidates[0].id);
   const [quantity, setQuantity] = useState(1);
   const [calculatedPurchase, setCalculatedPurchase] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [accepted, setAccepted] = useState(false);
 
   const candidate = useMemo(
     () =>
@@ -271,7 +281,8 @@ function OfferApp({ extensionInput }) {
         revenue: discountedTotal === undefined ? null : Number(discountedTotal),
         currencyCode,
       });
-      await done();
+      setAccepted(true);
+      setLoading(false);
     } catch (caught) {
       void trackAnalytics({
         inputData,
@@ -311,6 +322,7 @@ function OfferApp({ extensionInput }) {
     0,
   );
   const total = calculatedPurchase?.totalOutstandingSet?.presentmentMoney?.amount;
+  const originalTotal = Number(candidate.originalPrice) * quantity;
   const layoutMedia = content.showProductImage
     ? [
         { viewportSize: "small", sizes: [1, 0, 1] },
@@ -323,11 +335,132 @@ function OfferApp({ extensionInput }) {
         { viewportSize: "large", sizes: [0, 0, 1] },
       ];
 
+  if (accepted) {
+    return (
+      <BlockStack spacing="loose">
+        <Banner title="Offer added" status="success">
+          {content.confirmationMessage}
+        </Banner>
+        <TextBlock>
+          {quantity} × {candidate.productTitle} was added to your order.
+        </TextBlock>
+        <Button submit onPress={() => done()}>
+          Continue to order confirmation
+        </Button>
+      </BlockStack>
+    );
+  }
+
+  const productImage =
+    content.showProductImage && candidate.imageUrl ? (
+      <Image
+        source={candidate.imageUrl}
+        description={candidate.productTitle}
+        bordered
+        fit="contain"
+      />
+    ) : null;
+
+  const offerDetails = (
+    <BlockStack spacing="loose">
+      <TextContainer>
+        <Heading>{candidate.productTitle}</Heading>
+        <TextBlock>{candidate.variantTitle}</TextBlock>
+        <TextBlock>
+          <Text role="deletion" subdued>
+            {formatCurrency(originalTotal, candidate.currencyCode)}
+          </Text>{" "}
+          <Text
+            emphasized={content.savingsStyle === "highlighted"}
+            subdued={content.savingsStyle === "subtle"}
+            appearance={
+              content.savingsStyle === "highlighted" ? "success" : undefined
+            }
+          >
+            {discountedTotal === undefined
+              ? candidate.discountTitle
+              : formatCurrency(discountedTotal, currencyCode)}
+          </Text>
+        </TextBlock>
+      </TextContainer>
+
+      {content.showVariantSelector && offer.candidates.length > 1 ? (
+        <Select
+          label="Variant"
+          value={candidateId}
+          options={offer.candidates.map((item) => ({
+            value: item.id,
+            label: item.variantTitle,
+          }))}
+          onChange={setCandidateId}
+        />
+      ) : null}
+
+      {content.showQuantitySelector && offer.maxQuantity > 1 ? (
+        <Select
+          label="Quantity"
+          value={String(quantity)}
+          options={Array.from({ length: offer.maxQuantity }, (_, index) => ({
+            value: String(index + 1),
+            label: String(index + 1),
+          }))}
+          onChange={(value) => setQuantity(Number(value))}
+        />
+      ) : null}
+
+      <Separator />
+      {loading ? (
+        <Spinner />
+      ) : (
+        <BlockStack spacing="tight">
+          <MoneyLine
+            label="Item"
+            amount={discountedTotal}
+            currencyCode={currencyCode}
+          />
+          <MoneyLine
+            label="Additional shipping"
+            amount={shipping}
+            currencyCode={currencyCode}
+          />
+          <MoneyLine
+            label="Additional taxes"
+            amount={taxes}
+            currencyCode={currencyCode}
+          />
+          <MoneyLine
+            label="Amount due now"
+            amount={total}
+            currencyCode={currencyCode}
+            emphasized
+          />
+        </BlockStack>
+      )}
+
+      {error ? <CalloutBanner title="Offer unavailable">{error}</CalloutBanner> : null}
+
+      <Button
+        submit
+        loading={loading}
+        disabled={loading || Boolean(error) || !calculatedPurchase}
+        onPress={acceptOffer}
+      >
+        {total === undefined
+          ? "Pay now"
+          : `Pay now • ${formatCurrency(total, currencyCode)}`}
+      </Button>
+      <Button disabled={loading} onPress={declineOffer}>
+        Decline upsell offer
+      </Button>
+    </BlockStack>
+  );
+
   return (
     <BlockStack spacing="loose">
       <CalloutBanner
         title={content.headline}
         background={content.bannerBackground}
+        alignment={content.bannerAlignment}
       >
         {content.description}
       </CalloutBanner>
@@ -336,96 +469,18 @@ function OfferApp({ extensionInput }) {
         <TextBlock>{content.customMessage}</TextBlock>
       ) : null}
 
-      <Layout
-        maxInlineSize={0.95}
-        media={layoutMedia}
-      >
-        <View>
-          {content.showProductImage && candidate.imageUrl ? (
-            <Image
-              source={candidate.imageUrl}
-              description={candidate.productTitle}
-            />
-          ) : null}
-        </View>
-        <View />
+      {content.imagePosition === "above" ? (
         <BlockStack spacing="loose">
-          <TextContainer>
-            <Heading>{candidate.productTitle}</Heading>
-            <TextBlock>{candidate.variantTitle}</TextBlock>
-            <TextBlock>
-              <Text emphasized>{candidate.discountTitle}</Text>
-            </TextBlock>
-          </TextContainer>
-
-          {offer.candidates.length > 1 ? (
-            <Select
-              label="Variant"
-              value={candidateId}
-              options={offer.candidates.map((item) => ({
-                value: item.id,
-                label: item.variantTitle,
-              }))}
-              onChange={setCandidateId}
-            />
-          ) : null}
-
-          {offer.maxQuantity > 1 ? (
-            <Select
-              label="Quantity"
-              value={String(quantity)}
-              options={Array.from({ length: offer.maxQuantity }, (_, index) => ({
-                value: String(index + 1),
-                label: String(index + 1),
-              }))}
-              onChange={(value) => setQuantity(Number(value))}
-            />
-          ) : null}
-
-          <Separator />
-          {loading ? (
-            <Spinner />
-          ) : (
-            <BlockStack spacing="tight">
-              <MoneyLine
-                label="Item"
-                amount={discountedTotal}
-                currencyCode={currencyCode}
-              />
-              <MoneyLine
-                label="Additional shipping"
-                amount={shipping}
-                currencyCode={currencyCode}
-              />
-              <MoneyLine
-                label="Additional taxes"
-                amount={taxes}
-                currencyCode={currencyCode}
-              />
-              <MoneyLine
-                label="Amount due now"
-                amount={total}
-                currencyCode={currencyCode}
-                emphasized
-              />
-            </BlockStack>
-          )}
-
-          {error ? <CalloutBanner title="Offer unavailable">{error}</CalloutBanner> : null}
-
-          <Button
-            submit
-            loading={loading}
-            disabled={loading || Boolean(error) || !calculatedPurchase}
-            onPress={acceptOffer}
-          >
-            {content.acceptButtonText}
-          </Button>
-          <Button disabled={loading} onPress={declineOffer}>
-            {content.declineButtonText}
-          </Button>
+          {productImage}
+          {offerDetails}
         </BlockStack>
-      </Layout>
+      ) : (
+        <Layout maxInlineSize={0.95} media={layoutMedia}>
+          <View>{productImage}</View>
+          <View />
+          {offerDetails}
+        </Layout>
+      )}
     </BlockStack>
   );
 }

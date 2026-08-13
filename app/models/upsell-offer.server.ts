@@ -100,25 +100,38 @@ export const parseOfferForm = (formData: FormData) => {
     "Offer description",
     240,
   );
-  const acceptButtonText = limitedString(
-    stringWithDefault(formData, "acceptButtonText", "Add to my order"),
-    "Accept-button text",
-    40,
-  );
-  const declineButtonText = limitedString(
-    stringWithDefault(formData, "declineButtonText", "No thanks"),
-    "Decline-button text",
-    40,
-  );
   const customMessageValue = optionalString(formData, "customMessage");
   const customMessage = customMessageValue
     ? limitedString(customMessageValue, "Custom message", 200)
     : null;
+  const confirmationMessage = limitedString(
+    stringWithDefault(
+      formData,
+      "confirmationMessage",
+      "Your order has been updated.",
+    ),
+    "Confirmation message",
+    160,
+  );
   const rawBannerBackground = optionalString(formData, "bannerBackground");
   const bannerBackground =
     rawBannerBackground === "TRANSPARENT" ? "TRANSPARENT" : "SECONDARY";
+  const rawBannerAlignment = optionalString(formData, "bannerAlignment");
+  const bannerAlignment =
+    rawBannerAlignment === "LEADING" ? "LEADING" : "CENTER";
+  const rawImagePosition = optionalString(formData, "imagePosition");
+  const imagePosition = rawImagePosition === "ABOVE" ? "ABOVE" : "LEFT";
+  const rawSavingsStyle = optionalString(formData, "savingsStyle");
+  const savingsStyle =
+    rawSavingsStyle === "SUBTLE" ? "SUBTLE" : "HIGHLIGHTED";
   const showProductImage = formData.has("contentSettingsPresent")
     ? formData.getAll("showProductImage").includes("true")
+    : true;
+  const showVariantSelector = formData.has("contentSettingsPresent")
+    ? formData.getAll("showVariantSelector").includes("true")
+    : true;
+  const showQuantitySelector = formData.has("contentSettingsPresent")
+    ? formData.getAll("showQuantitySelector").includes("true")
     : true;
 
   if (discountValue <= 0) {
@@ -182,11 +195,20 @@ export const parseOfferForm = (formData: FormData) => {
     maxQuantity,
     headline,
     offerDescription,
-    acceptButtonText,
-    declineButtonText,
+    // Shopify requires these actions to use prescribed checkout language. The
+    // columns remain for backwards-compatible migrations, but merchant input
+    // must never override the buyer-facing labels.
+    acceptButtonText: "Pay now",
+    declineButtonText: "Decline upsell offer",
     customMessage,
+    confirmationMessage,
     showProductImage,
+    showVariantSelector,
+    showQuantitySelector,
     bannerBackground,
+    bannerAlignment,
+    imagePosition,
+    savingsStyle,
     status,
   };
 };

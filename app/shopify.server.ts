@@ -15,6 +15,7 @@ const configuredScopes = new Set(
 );
 configuredScopes.add("read_products");
 configuredScopes.add("read_orders");
+configuredScopes.add("write_files");
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,

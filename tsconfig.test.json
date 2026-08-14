@@ -14,6 +14,7 @@
     "app/models/catalog-webhooks.server.ts",
     "app/models/post-purchase-eligibility.server.ts",
     "app/models/post-purchase-offer.server.ts",
+    "app/models/shopify-image-upload.server.ts",
     "app/models/upsell-offer.server.ts",
     "app/models/upsell-analytics.server.ts",
     "app/shopify.server.ts",
@@ -22,6 +23,7 @@
     "tests/post-purchase-eligibility.test.ts",
     "tests/post-purchase-pricing.test.ts",
     "tests/post-purchase-security.test.ts",
+    "tests/shopify-image-upload.test.ts",
     "tests/upsell-analytics.integration.test.ts"
   ]
 }

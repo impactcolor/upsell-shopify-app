@@ -14,7 +14,7 @@
     "setup": "prisma generate && prisma migrate deploy",
     "setup:render": "prisma generate --schema prisma/postgres/schema.prisma && prisma migrate deploy --schema prisma/postgres/schema.prisma",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
-    "test": "tsc -p tsconfig.test.json && node .test-build/tests/post-purchase-eligibility.test.js && node .test-build/tests/post-purchase-pricing.test.js && node .test-build/tests/offer-content.test.js && node .test-build/tests/post-purchase-security.test.js && node .test-build/tests/catalog-webhooks.integration.test.js && node .test-build/tests/upsell-analytics.integration.test.js",
+    "test": "tsc -p tsconfig.test.json && node .test-build/tests/post-purchase-eligibility.test.js && node .test-build/tests/post-purchase-pricing.test.js && node .test-build/tests/offer-content.test.js && node .test-build/tests/post-purchase-security.test.js && node .test-build/tests/catalog-webhooks.integration.test.js && node .test-build/tests/upsell-analytics.integration.test.js && node .test-build/tests/shopify-image-upload.test.js",
     "shopify": "shopify",
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",

@@ -9,6 +9,10 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import {
+  OfferImagePicker,
+  type OfferImageOption,
+} from "../components/offer-image-picker";
+import {
   ensureOfferIsUnique,
   parseOfferForm,
   serializeOffer,
@@ -32,8 +36,6 @@ type SelectedVariant = {
   imageUrl: string;
   price: string;
 };
-type ProductImageOption = { url: string; label: string };
-
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const offer = await prisma.upsellOffer.findFirst({
@@ -42,7 +44,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   if (!offer) throw new Response("Offer not found", { status: 404 });
 
-  let imageOptions: ProductImageOption[] = [];
+  let imageOptions: OfferImageOption[] = [];
   if (offer.offerProductId) {
     const response = await admin.graphql(
       `#graphql
@@ -73,7 +75,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       })) ?? [];
   }
 
-  return { offer: serializeOffer(offer), imageOptions };
+  const grantedScopes = new Set(
+    (session.scope ?? "").split(",").map((scope) => scope.trim()),
+  );
+  return {
+    offer: serializeOffer(offer),
+    imageOptions,
+    fileWriteAccess: grantedScopes.has("write_files"),
+  };
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -103,8 +112,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function OfferDetailsPage() {
-  const { offer: savedOffer, imageOptions: savedImageOptions } =
-    useLoaderData<typeof loader>();
+  const {
+    offer: savedOffer,
+    imageOptions: savedImageOptions,
+    fileWriteAccess,
+  } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
   const [triggerType, setTriggerType] = useState<TriggerType>(
@@ -138,7 +150,7 @@ export default function OfferDetailsPage() {
   );
   const [discountValue, setDiscountValue] = useState(savedOffer.discountValue);
   const [imageOptions, setImageOptions] =
-    useState<ProductImageOption[]>(savedImageOptions);
+    useState<OfferImageOption[]>(savedImageOptions);
   const [headline, setHeadline] = useState(savedOffer.headline);
   const [offerDescription, setOfferDescription] = useState(
     savedOffer.offerDescription,
@@ -394,27 +406,18 @@ export default function OfferDetailsPage() {
                       <s-button type="button" onClick={chooseOffer}>
                         {offer ? "Change" : "Select"} upsell variant
                       </s-button>
-                      {offer && imageOptions.length > 0 && (
-                        <s-select
-                          label="Product image"
-                          value={offer.imageUrl}
-                          onChange={(event) =>
+                      {offer && (
+                        <OfferImagePicker
+                          imageOptions={imageOptions}
+                          imageUrl={offer.imageUrl}
+                          productTitle={offer.productTitle}
+                          canUpload={fileWriteAccess}
+                          onChange={(imageUrl) =>
                             setOffer((current) =>
-                              current
-                                ? {
-                                    ...current,
-                                    imageUrl: event.currentTarget.value,
-                                  }
-                                : current,
+                              current ? { ...current, imageUrl } : current,
                             )
                           }
-                        >
-                          {imageOptions.map((image) => (
-                            <s-option key={image.url} value={image.url}>
-                              {image.label}
-                            </s-option>
-                          ))}
-                        </s-select>
+                        />
                       )}
                     </>
                   ) : (

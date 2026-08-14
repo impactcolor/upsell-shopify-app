@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -13,6 +13,10 @@ import {
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
+import {
+  OfferImagePicker,
+  type OfferImageOption,
+} from "../components/offer-image-picker";
 import {
   ensureOfferIsUnique,
   parseOfferForm,
@@ -79,6 +83,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     postPurchaseAppInUse:
       typeof postPurchaseAppInUse === "boolean" ? postPurchaseAppInUse : null,
     orderDetailsAccess: grantedScopes.has("read_orders"),
+    fileWriteAccess: grantedScopes.has("write_files"),
     checkoutSettingsUrl: `https://admin.shopify.com/store/${encodeURIComponent(shopHandle)}/settings/checkout`,
   };
 };
@@ -128,6 +133,7 @@ export default function OffersPage() {
   const {
     checkoutSettingsUrl,
     currencyCode,
+    fileWriteAccess,
     offers,
     orderDetailsAccess,
     postPurchaseAppInUse,
@@ -140,7 +146,9 @@ export default function OffersPage() {
   const [upsellAction, setUpsellAction] =
     useState<UpsellAction>("MATCHING_VARIANT");
   const [offer, setOffer] = useState<SelectedVariant | null>(null);
+  const [imageOptions, setImageOptions] = useState<OfferImageOption[]>([]);
   const [discountType, setDiscountType] = useState<DiscountType>("FIXED_PRICE");
+  const previousPostPurchaseStatus = useRef(postPurchaseAppInUse);
   const isSubmitting = fetcher.state !== "idle";
 
   useEffect(() => {
@@ -150,6 +158,42 @@ export default function OffersPage() {
       });
     }
   }, [fetcher.data, shopify]);
+
+  useEffect(() => {
+    if (
+      previousPostPurchaseStatus.current === false &&
+      postPurchaseAppInUse === true
+    ) {
+      shopify.toast.show("Post-purchase enabled");
+    }
+    previousPostPurchaseStatus.current = postPurchaseAppInUse;
+  }, [postPurchaseAppInUse, shopify]);
+
+  useEffect(() => {
+    if (postPurchaseAppInUse !== false) return;
+
+    const refreshActivationStatus = () => {
+      if (
+        document.visibilityState === "visible" &&
+        revalidator.state === "idle"
+      ) {
+        revalidator.revalidate();
+      }
+    };
+
+    window.addEventListener("focus", refreshActivationStatus);
+    document.addEventListener("visibilitychange", refreshActivationStatus);
+    const refreshInterval = window.setInterval(refreshActivationStatus, 5000);
+
+    return () => {
+      window.removeEventListener("focus", refreshActivationStatus);
+      document.removeEventListener(
+        "visibilitychange",
+        refreshActivationStatus,
+      );
+      window.clearInterval(refreshInterval);
+    };
+  }, [postPurchaseAppInUse, revalidator]);
 
   const chooseTrigger = async () => {
     if (triggerType === "COLLECTION") {
@@ -194,12 +238,22 @@ export default function OffersPage() {
     const variant = selected?.[0];
     if (!variant?.product.id) return;
 
+    const nextImageOptions = (variant.product.images ?? []).map(
+      (image, index) => ({
+        url: image.originalSrc,
+        label: image.altText?.trim() || `Product image ${index + 1}`,
+      }),
+    );
+    const selectedImageUrl =
+      variant.image?.originalSrc ?? nextImageOptions[0]?.url ?? "";
+    setImageOptions(nextImageOptions);
+
     setOffer({
       id: variant.id,
       title: variant.title,
       productId: variant.product.id,
       productTitle: variant.product.title ?? variant.displayName,
-      imageUrl: variant.image?.originalSrc ?? "",
+      imageUrl: selectedImageUrl,
       price: variant.price,
     });
   };
@@ -412,6 +466,19 @@ export default function OffersPage() {
                       <s-button type="button" onClick={chooseOffer}>
                         Select upsell variant
                       </s-button>
+                      {offer && (
+                        <OfferImagePicker
+                          imageOptions={imageOptions}
+                          imageUrl={offer.imageUrl}
+                          productTitle={offer.productTitle}
+                          canUpload={fileWriteAccess}
+                          onChange={(imageUrl) =>
+                            setOffer((current) =>
+                              current ? { ...current, imageUrl } : current,
+                            )
+                          }
+                        />
+                      )}
                     </>
                   ) : (
                     <s-text color="subdued">
@@ -604,9 +671,11 @@ export default function OffersPage() {
                 : "Status unavailable"}
           </s-badge>
           <s-paragraph>
-            Active offers are eligible to appear only when Upsell is selected as
-            the store&apos;s post-purchase app. Paused and draft offers are
-            never shown.
+            {postPurchaseAppInUse === true
+              ? "Upsell is selected for the post-purchase page. Active offers can appear after qualifying purchases."
+              : postPurchaseAppInUse === false
+                ? "Upsell is not selected for the post-purchase page yet. Complete the setup above to show active offers."
+                : "The app could not verify the post-purchase setting. Open checkout settings to confirm that Upsell is selected."}
           </s-paragraph>
         </s-stack>
       </s-section>

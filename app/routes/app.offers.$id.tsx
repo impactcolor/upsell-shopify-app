@@ -33,7 +33,6 @@ type SelectedVariant = {
   title: string;
   productId: string;
   productTitle: string;
-  imageUrl: string;
   price: string;
 };
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -140,7 +139,6 @@ export default function OfferDetailsPage() {
           title: savedOffer.offerVariantTitle,
           productId: savedOffer.offerProductId,
           productTitle: savedOffer.offerProductTitle,
-          imageUrl: savedOffer.offerImageUrl ?? "",
           price: savedOffer.offerPrice ?? "0",
         }
       : null,
@@ -151,6 +149,9 @@ export default function OfferDetailsPage() {
   const [discountValue, setDiscountValue] = useState(savedOffer.discountValue);
   const [imageOptions, setImageOptions] =
     useState<OfferImageOption[]>(savedImageOptions);
+  const [offerImageUrl, setOfferImageUrl] = useState(
+    savedOffer.offerImageUrl ?? "",
+  );
   const [headline, setHeadline] = useState(savedOffer.headline);
   const [offerDescription, setOfferDescription] = useState(
     savedOffer.offerDescription,
@@ -249,12 +250,12 @@ export default function OfferDetailsPage() {
     const selectedImageUrl =
       variant.image?.originalSrc ?? nextImageOptions[0]?.url ?? "";
     setImageOptions(nextImageOptions);
+    setOfferImageUrl(selectedImageUrl);
     setOffer({
       id: variant.id,
       title: variant.title,
       productId: variant.product.id,
       productTitle: variant.product.title ?? variant.displayName,
-      imageUrl: selectedImageUrl,
       price: variant.price,
     });
   };
@@ -306,7 +307,7 @@ export default function OfferDetailsPage() {
         <input
           type="hidden"
           name="offerImageUrl"
-          value={specificVariant ? (offer?.imageUrl ?? "") : ""}
+          value={offerImageUrl}
         />
         <input
           type="hidden"
@@ -384,10 +385,14 @@ export default function OfferDetailsPage() {
                   </s-select>
                   {specificVariant ? (
                     <>
-                      {offer?.imageUrl && (
+                      {offerImageUrl && (
                         <s-thumbnail
-                          src={offer.imageUrl}
-                          alt={offer.productTitle}
+                          src={offerImageUrl}
+                          alt={
+                            offer?.productTitle ??
+                            trigger?.title ??
+                            "Upsell offer"
+                          }
                         />
                       )}
                       <s-text>
@@ -406,19 +411,6 @@ export default function OfferDetailsPage() {
                       <s-button type="button" onClick={chooseOffer}>
                         {offer ? "Change" : "Select"} upsell variant
                       </s-button>
-                      {offer && (
-                        <OfferImagePicker
-                          imageOptions={imageOptions}
-                          imageUrl={offer.imageUrl}
-                          productTitle={offer.productTitle}
-                          canUpload={fileWriteAccess}
-                          onChange={(imageUrl) =>
-                            setOffer((current) =>
-                              current ? { ...current, imageUrl } : current,
-                            )
-                          }
-                        />
-                      )}
                     </>
                   ) : (
                     <s-text color="subdued">
@@ -427,6 +419,17 @@ export default function OfferDetailsPage() {
                         : "Repeat the matching product and let the customer choose a variant."}
                     </s-text>
                   )}
+                  <OfferImagePicker
+                    imageOptions={specificVariant ? imageOptions : []}
+                    imageUrl={offerImageUrl}
+                    productTitle={
+                      specificVariant
+                        ? (offer?.productTitle ?? "Upsell offer")
+                        : (trigger?.title ?? "Upsell offer")
+                    }
+                    canUpload={fileWriteAccess}
+                    onChange={setOfferImageUrl}
+                  />
                 </s-stack>
               </s-box>
             </s-grid>
@@ -650,10 +653,10 @@ export default function OfferDetailsPage() {
                   </s-stack>
                 </s-box>
                 {customMessage && <s-text>{customMessage}</s-text>}
-                {showProductImage && offer?.imageUrl && (
+                {showProductImage && offerImageUrl && (
                   <s-thumbnail
-                    src={offer.imageUrl}
-                    alt={offer.productTitle}
+                    src={offerImageUrl}
+                    alt={offer?.productTitle ?? trigger?.title ?? "Upsell offer"}
                     size="large"
                   />
                 )}

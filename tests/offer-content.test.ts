@@ -45,6 +45,10 @@ assert.equal(defaults.savingsStyle, "HIGHLIGHTED");
 
 const customForm = baseForm();
 customForm.set("contentSettingsPresent", "true");
+customForm.set(
+  "offerImageUrl",
+  "https://cdn.shopify.com/s/files/offer-image.png",
+);
 customForm.set("headline", "A second one, just for you");
 customForm.set("offerDescription", "Add the same item at a special price.");
 customForm.set("customMessage", "This offer is available on this page only.");
@@ -68,6 +72,10 @@ assert.equal(custom.bannerBackground, "TRANSPARENT");
 assert.equal(custom.bannerAlignment, "LEADING");
 assert.equal(custom.imagePosition, "ABOVE");
 assert.equal(custom.savingsStyle, "SUBTLE");
+assert.equal(
+  custom.offerImageUrl,
+  "https://cdn.shopify.com/s/files/offer-image.png",
+);
 
 const invalidForm = baseForm();
 invalidForm.set("headline", "x".repeat(81));

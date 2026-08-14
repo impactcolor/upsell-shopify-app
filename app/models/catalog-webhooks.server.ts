@@ -171,13 +171,11 @@ const applyProductUpdate = async (
 
     const variantTitle = optionalString(variant.title);
     const price = optionalMoney(variant.price);
-    const variantImage = nestedString(variant.featured_image, "src") ?? imageUrl;
     await tx.upsellOffer.update({
       where: { id: offer.id },
       data: {
         ...(title ? { offerProductTitle: title } : {}),
         ...(variantTitle ? { offerVariantTitle: variantTitle } : {}),
-        ...(variantImage ? { offerImageUrl: variantImage } : {}),
         ...(price !== null ? { offerPrice: price } : {}),
       },
     });

@@ -302,10 +302,7 @@ const createCandidate = ({
     id: variant.id,
     productTitle: variant.product.title,
     variantTitle: variant.title,
-    imageUrl:
-      offer.upsellAction === "SPECIFIC_VARIANT" && offer.offerImageUrl
-        ? offer.offerImageUrl
-        : variant.imageUrl,
+    imageUrl: offer.offerImageUrl || variant.imageUrl,
     originalPrice: variant.price,
     currencyCode: offer.offerCurrencyCode,
     discountTitle: discount.title,

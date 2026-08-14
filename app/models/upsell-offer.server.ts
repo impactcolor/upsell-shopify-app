@@ -185,9 +185,7 @@ export const parseOfferForm = (formData: FormData) => {
     offerVariantTitle: specificVariant
       ? requiredString(formData, "offerVariantTitle")
       : null,
-    offerImageUrl: specificVariant
-      ? optionalString(formData, "offerImageUrl")
-      : null,
+    offerImageUrl: optionalString(formData, "offerImageUrl"),
     offerPrice: specificVariant ? offerPrice : null,
     offerCurrencyCode: requiredString(formData, "offerCurrencyCode"),
     discountType,

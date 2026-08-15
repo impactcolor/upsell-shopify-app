@@ -25,6 +25,7 @@ type CatalogVariant = {
     id: string;
     title: string;
     collectionIds: string[];
+    imageUrls: string[];
   };
 };
 
@@ -37,6 +38,7 @@ type CatalogNodeResponse = {
     id: string;
     title: string;
     collections: { nodes: Array<{ id: string }> };
+    images?: { nodes: Array<{ url: string }> };
     variants: {
       nodes: Array<{
         id: string;
@@ -53,6 +55,7 @@ type OfferCandidate = {
   productTitle: string;
   variantTitle: string;
   imageUrl: string | null;
+  imageUrls: string[];
   originalPrice: string;
   currencyCode: string;
   discountTitle: string;
@@ -298,11 +301,19 @@ const createCandidate = ({
     },
   );
 
+  const primaryImageUrl =
+    offer.offerImageUrl || variant.imageUrl || variant.product.imageUrls[0] || null;
+  const imageUrls = [primaryImageUrl, ...variant.product.imageUrls].filter(
+    (imageUrl, index, images): imageUrl is string =>
+      Boolean(imageUrl) && images.indexOf(imageUrl) === index,
+  );
+
   return {
     id: variant.id,
     productTitle: variant.product.title,
     variantTitle: variant.title,
-    imageUrl: offer.offerImageUrl || variant.imageUrl,
+    imageUrl: primaryImageUrl,
+    imageUrls: imageUrls.slice(0, 3),
     originalPrice: variant.price,
     currencyCode: offer.offerCurrencyCode,
     discountTitle: discount.title,
@@ -406,6 +417,11 @@ const loadCatalog = async (shop: string, variantIds: string[]) => {
                   id
                 }
               }
+              images(first: 3) {
+                nodes {
+                  url
+                }
+              }
               variants(first: 100) {
                 nodes {
                   id
@@ -441,6 +457,7 @@ const loadCatalog = async (shop: string, variantIds: string[]) => {
       collectionIds: node.product.collections.nodes.map((item: { id: string }) =>
         normalizeShopifyId(item.id),
       ),
+      imageUrls: (node.product.images?.nodes ?? []).map((image) => image.url),
     };
     const productId = normalizeShopifyId(product.id);
     byProductId.set(productId, product);

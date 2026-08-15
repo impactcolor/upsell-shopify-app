@@ -354,38 +354,106 @@ function OfferApp({ extensionInput }) {
     );
   }
 
+  const candidateImageUrls = Array.isArray(candidate.imageUrls)
+    ? candidate.imageUrls
+    : candidate.imageUrl
+      ? [candidate.imageUrl]
+      : [];
+  const primaryImageUrl = candidateImageUrls[0] || candidate.imageUrl;
+  const supportingImageUrls = candidateImageUrls.slice(1, 3);
   const productImage =
-    content.showProductImage && candidate.imageUrl ? (
+    content.showProductImage && primaryImageUrl ? (
       <Image
-        source={candidate.imageUrl}
+        source={primaryImageUrl}
         description={candidate.productTitle}
         bordered
         fit="contain"
       />
     ) : null;
 
+  const renderPurchaseControls = () => (
+    <BlockStack spacing="tight">
+      <Separator />
+      {loading ? (
+        <Spinner />
+      ) : (
+        <BlockStack spacing="tight">
+          <MoneyLine
+            label="Subtotal"
+            amount={discountedTotal}
+            currencyCode={currencyCode}
+          />
+          <MoneyLine
+            label="Additional shipping"
+            amount={shipping}
+            currencyCode={currencyCode}
+          />
+          <MoneyLine
+            label="Additional taxes"
+            amount={taxes}
+            currencyCode={currencyCode}
+          />
+          <MoneyLine
+            label="Amount due now"
+            amount={total}
+            currencyCode={currencyCode}
+            emphasized
+          />
+        </BlockStack>
+      )}
+
+      {error ? (
+        <CalloutBanner title="Offer unavailable">{error}</CalloutBanner>
+      ) : null}
+
+      <Button
+        submit
+        loading={loading}
+        disabled={loading || Boolean(error) || !calculatedPurchase}
+        onPress={acceptOffer}
+      >
+        {total === undefined
+          ? "Pay now"
+          : `Pay now • ${formatCurrency(total, currencyCode)}`}
+      </Button>
+      <Button disabled={loading} onPress={declineOffer}>
+        Decline this offer
+      </Button>
+    </BlockStack>
+  );
+
   const offerDetails = (
     <BlockStack spacing="loose">
       <TextContainer>
         <Heading>{candidate.productTitle}</Heading>
         <TextBlock>{candidate.variantTitle}</TextBlock>
-        <TextBlock>
-          <Text role="deletion" subdued>
-            {formatCurrency(originalTotal, candidate.currencyCode)}
-          </Text>{" "}
-          <Text
-            emphasized={content.savingsStyle === "highlighted"}
-            subdued={content.savingsStyle === "subtle"}
-            appearance={
-              content.savingsStyle === "highlighted" ? "success" : undefined
-            }
-          >
-            {discountedTotal === undefined
-              ? candidate.discountTitle
-              : formatCurrency(discountedTotal, currencyCode)}
-          </Text>
-        </TextBlock>
       </TextContainer>
+
+      <Tiles>
+        <TextContainer>
+          <TextBlock>
+            <Text role="deletion" subdued>
+              {formatCurrency(originalTotal, candidate.currencyCode)}
+            </Text>{" "}
+            <Text
+              size="large"
+              emphasized={content.savingsStyle === "highlighted"}
+              subdued={content.savingsStyle === "subtle"}
+              appearance={
+                content.savingsStyle === "highlighted" ? "success" : undefined
+              }
+            >
+              {discountedTotal === undefined
+                ? candidate.discountTitle
+                : formatCurrency(discountedTotal, currencyCode)}
+            </Text>
+          </TextBlock>
+        </TextContainer>
+        <TextContainer alignment="trailing">
+          <TextBlock emphasized>{candidate.discountTitle}</TextBlock>
+          <TextBlock subdued>SAVINGS</TextBlock>
+        </TextContainer>
+      </Tiles>
 
       {purchasedLineProperties.length > 0 ? (
         <BlockStack spacing="tight">
@@ -429,50 +497,7 @@ function OfferApp({ extensionInput }) {
         />
       ) : null}
 
-      <Separator />
-      {loading ? (
-        <Spinner />
-      ) : (
-        <BlockStack spacing="tight">
-          <MoneyLine
-            label="Item"
-            amount={discountedTotal}
-            currencyCode={currencyCode}
-          />
-          <MoneyLine
-            label="Additional shipping"
-            amount={shipping}
-            currencyCode={currencyCode}
-          />
-          <MoneyLine
-            label="Additional taxes"
-            amount={taxes}
-            currencyCode={currencyCode}
-          />
-          <MoneyLine
-            label="Amount due now"
-            amount={total}
-            currencyCode={currencyCode}
-            emphasized
-          />
-        </BlockStack>
-      )}
-
-      {error ? <CalloutBanner title="Offer unavailable">{error}</CalloutBanner> : null}
-
-      <Button
-        submit
-        loading={loading}
-        disabled={loading || Boolean(error) || !calculatedPurchase}
-        onPress={acceptOffer}
-      >
-        {total === undefined
-          ? "Pay now"
-          : `Pay now • ${formatCurrency(total, currencyCode)}`}
-      </Button>
-      <Button disabled={loading} onPress={declineOffer}>
-        Decline upsell offer
-      </Button>
+      {renderPurchaseControls()}
     </BlockStack>
   );
 
@@ -486,10 +511,6 @@ function OfferApp({ extensionInput }) {
         {content.description}
       </CalloutBanner>
 
-      {content.customMessage ? (
-        <TextBlock>{content.customMessage}</TextBlock>
-      ) : null}
-
       {content.imagePosition === "above" ? (
         <BlockStack spacing="loose">
           {productImage}
@@ -502,6 +523,40 @@ function OfferApp({ extensionInput }) {
           {offerDetails}
         </Layout>
       )}
+
+      {content.customMessage || supportingImageUrls.length > 0 ? (
+        <BlockStack spacing="loose">
+          {content.customMessage ? (
+            <CalloutBanner
+              title={content.customMessage}
+              background="transparent"
+              alignment="leading"
+              border="none"
+              spacing="loose"
+            >
+              {content.description}
+            </CalloutBanner>
+          ) : null}
+          {content.showProductImage
+            ? supportingImageUrls.map((imageUrl, index) => (
+                <Image
+                  key={imageUrl}
+                  source={imageUrl}
+                  description={`${candidate.productTitle} view ${index + 2}`}
+                  loading="lazy"
+                  fit="contain"
+                />
+              ))
+            : null}
+        </BlockStack>
+      ) : null}
+
+      <CalloutBanner
+        title={`Add ${candidate.productTitle} to your order`}
+        background={content.bannerBackground}
+        alignment={content.bannerAlignment}
+      />
+      {renderPurchaseControls()}
     </BlockStack>
   );
 }

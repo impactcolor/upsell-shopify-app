@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -22,8 +22,8 @@ export function OfferImagePicker({
   const uploadFetcher = useFetcher<ImageUploadResponse>();
   const shopify = useAppBridge();
   const onChangeRef = useRef(onChange);
-  const { data: uploadData, load, state, submit } = uploadFetcher;
-  const isUploading = state !== "idle";
+  const { data: uploadData, load, submit } = uploadFetcher;
+  const [isUploading, setIsUploading] = useState(false);
   const options = useMemo(() => {
     if (!imageUrl || imageOptions.some((option) => option.url === imageUrl)) {
       return imageOptions;
@@ -39,9 +39,12 @@ export function OfferImagePicker({
     const data = uploadData;
     if (!data) return;
     if (data.ok && data.imageUrl) {
-      onChangeRef.current(data.imageUrl);
-      shopify.toast.show("Image uploaded to Shopify");
-      return;
+      const timer = window.setTimeout(() => {
+        setIsUploading(false);
+        onChangeRef.current(data.imageUrl!);
+        shopify.toast.show("Image uploaded to Shopify");
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
     if (data.ok && data.processing && data.fileId) {
       const timer = window.setTimeout(() => {
@@ -51,11 +54,18 @@ export function OfferImagePicker({
       }, 500);
       return () => window.clearTimeout(timer);
     }
-    if (!data.ok) shopify.toast.show(data.message, { isError: true });
+    if (!data.ok) {
+      const timer = window.setTimeout(() => {
+        setIsUploading(false);
+        shopify.toast.show(data.message, { isError: true });
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
   }, [load, shopify, uploadData]);
 
   const uploadImage = (file: File | undefined) => {
     if (!file) return;
+    setIsUploading(true);
     const formData = new FormData();
     formData.set("image", file);
     formData.set("alt", `${productTitle} upsell offer`);

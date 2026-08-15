@@ -326,17 +326,68 @@ function OfferApp({ extensionInput }) {
   );
   const total = calculatedPurchase?.totalOutstandingSet?.presentmentMoney?.amount;
   const originalTotal = Number(candidate.originalPrice) * quantity;
+  const centeredSectionMedia = [
+    { viewportSize: "small", maxInlineSize: 0.95, sizes: [1] },
+    { viewportSize: "medium", maxInlineSize: 0.85, sizes: [1] },
+    { viewportSize: "large", maxInlineSize: 900, sizes: [1] },
+  ];
   const layoutMedia = content.showProductImage
     ? [
-        { viewportSize: "small", sizes: [1, 0, 1] },
-        { viewportSize: "medium", sizes: [300, 30, 1] },
-        { viewportSize: "large", sizes: [400, 38, 1] },
+        {
+          viewportSize: "small",
+          maxInlineSize: 0.95,
+          sizes: [1, 0, 1],
+        },
+        {
+          viewportSize: "medium",
+          maxInlineSize: 0.85,
+          sizes: [0.492, 0.016, "fill"],
+        },
+        {
+          viewportSize: "large",
+          maxInlineSize: 900,
+          sizes: [0.492, 0.016, "fill"],
+        },
       ]
     : [
-        { viewportSize: "small", sizes: [0, 0, 1] },
-        { viewportSize: "medium", sizes: [0, 0, 1] },
-        { viewportSize: "large", sizes: [0, 0, 1] },
+        {
+          viewportSize: "small",
+          maxInlineSize: 0.95,
+          sizes: [0, 0, 1],
+        },
+        {
+          viewportSize: "medium",
+          maxInlineSize: 0.85,
+          sizes: [0, 0, 1],
+        },
+        {
+          viewportSize: "large",
+          maxInlineSize: 900,
+          sizes: [0, 0, 1],
+        },
       ];
+  const benefitLayoutMedia = [
+    {
+      viewportSize: "small",
+      maxInlineSize: 0.95,
+      sizes: [1, 0, 1],
+    },
+    {
+      viewportSize: "medium",
+      maxInlineSize: 0.85,
+      sizes: ["fill", 0.03, 0.385],
+    },
+    {
+      viewportSize: "large",
+      maxInlineSize: 900,
+      sizes: ["fill", 0.03, 0.385],
+    },
+  ];
+  const closingControlsMedia = [
+    { viewportSize: "small", maxInlineSize: 0.95, sizes: [1] },
+    { viewportSize: "medium", maxInlineSize: 500, sizes: [1] },
+    { viewportSize: "large", maxInlineSize: 450, sizes: [1] },
+  ];
 
   if (accepted) {
     return (
@@ -361,6 +412,8 @@ function OfferApp({ extensionInput }) {
       : [];
   const primaryImageUrl = candidateImageUrls[0] || candidate.imageUrl;
   const supportingImageUrls = candidateImageUrls.slice(1, 3);
+  const primarySupportingImageUrl = supportingImageUrls[0];
+  const remainingSupportingImageUrls = supportingImageUrls.slice(1);
   const productImage =
     content.showProductImage && primaryImageUrl ? (
       <Image
@@ -503,30 +556,36 @@ function OfferApp({ extensionInput }) {
 
   return (
     <BlockStack spacing="loose">
-      <CalloutBanner
-        title={content.headline}
-        background={content.bannerBackground}
-        alignment={content.bannerAlignment}
-      >
-        {content.description}
-      </CalloutBanner>
+      <Layout media={centeredSectionMedia}>
+        <CalloutBanner
+          title={content.headline}
+          background={content.bannerBackground}
+          alignment="center"
+        >
+          {content.description}
+        </CalloutBanner>
+      </Layout>
 
       {content.imagePosition === "above" ? (
-        <BlockStack spacing="loose">
-          {productImage}
-          {offerDetails}
-        </BlockStack>
+        <Layout media={centeredSectionMedia}>
+          <BlockStack spacing="loose" alignment="center">
+            {productImage}
+            {offerDetails}
+          </BlockStack>
+        </Layout>
       ) : (
-        <Layout maxInlineSize={0.95} media={layoutMedia}>
+        <Layout media={layoutMedia}>
           <View>{productImage}</View>
           <View />
           {offerDetails}
         </Layout>
       )}
 
-      {content.customMessage || supportingImageUrls.length > 0 ? (
-        <BlockStack spacing="loose">
-          {content.customMessage ? (
+      {content.customMessage &&
+      content.showProductImage &&
+      primarySupportingImageUrl ? (
+        <Layout media={benefitLayoutMedia}>
+          <View>
             <CalloutBanner
               title={content.customMessage}
               background="transparent"
@@ -536,27 +595,64 @@ function OfferApp({ extensionInput }) {
             >
               {content.description}
             </CalloutBanner>
-          ) : null}
-          {content.showProductImage
-            ? supportingImageUrls.map((imageUrl, index) => (
-                <Image
-                  key={imageUrl}
-                  source={imageUrl}
-                  description={`${candidate.productTitle} view ${index + 2}`}
-                  loading="lazy"
-                  fit="contain"
-                />
-              ))
-            : null}
-        </BlockStack>
+          </View>
+          <View />
+          <View>
+            <Image
+              source={primarySupportingImageUrl}
+              description={`${candidate.productTitle} lifestyle view`}
+              loading="lazy"
+              fit="contain"
+            />
+          </View>
+        </Layout>
+      ) : content.customMessage || primarySupportingImageUrl ? (
+        <Layout media={centeredSectionMedia}>
+          <BlockStack spacing="loose" alignment="center">
+            {content.customMessage ? (
+              <CalloutBanner
+                title={content.customMessage}
+                background="transparent"
+                alignment="center"
+                border="none"
+                spacing="loose"
+              >
+                {content.description}
+              </CalloutBanner>
+            ) : null}
+            {content.showProductImage && primarySupportingImageUrl ? (
+              <Image
+                source={primarySupportingImageUrl}
+                description={`${candidate.productTitle} lifestyle view`}
+                loading="lazy"
+                fit="contain"
+              />
+            ) : null}
+          </BlockStack>
+        </Layout>
       ) : null}
 
-      <CalloutBanner
-        title={`Add ${candidate.productTitle} to your order`}
-        background={content.bannerBackground}
-        alignment={content.bannerAlignment}
-      />
-      {renderPurchaseControls()}
+      {content.showProductImage
+        ? remainingSupportingImageUrls.map((imageUrl, index) => (
+            <Layout key={imageUrl} media={centeredSectionMedia}>
+              <Image
+                source={imageUrl}
+                description={`${candidate.productTitle} detail view ${index + 1}`}
+                loading="lazy"
+                fit="contain"
+              />
+            </Layout>
+          ))
+        : null}
+
+      <Layout media={centeredSectionMedia}>
+        <CalloutBanner
+          title={`Add ${candidate.productTitle} to your order`}
+          background={content.bannerBackground}
+          alignment="center"
+        />
+      </Layout>
+      <Layout media={closingControlsMedia}>{renderPurchaseControls()}</Layout>
     </BlockStack>
   );
 }

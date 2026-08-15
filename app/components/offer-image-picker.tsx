@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { useFetcher } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -25,6 +31,7 @@ export function OfferImagePicker({
   const shopify = useAppBridge();
   const onChangeRef = useRef(onChange);
   const onUploadCompleteRef = useRef(onUploadComplete);
+  const replacementInputRef = useRef<HTMLInputElement>(null);
   const { data: uploadData, load, submit } = uploadFetcher;
   const [isUploading, setIsUploading] = useState(false);
   const options = useMemo(() => {
@@ -85,6 +92,11 @@ export function OfferImagePicker({
     });
   };
 
+  const uploadReplacementImage = (event: ChangeEvent<HTMLInputElement>) => {
+    uploadImage(event.currentTarget.files?.[0]);
+    event.currentTarget.value = "";
+  };
+
   return (
     <s-stack direction="block" gap="base">
       {options.length > 0 && (
@@ -101,18 +113,49 @@ export function OfferImagePicker({
         </s-select>
       )}
 
-      <s-drop-zone
-        label="Upload a custom offer image"
-        accessibilityLabel="Upload a custom offer image to Shopify Files"
-        accept="image/jpeg,image/png,image/webp,image/gif"
-        disabled={!canUpload || isUploading}
-        error={
-          canUpload
-            ? ""
-            : "Reopen or reinstall the app and approve Shopify Files access first."
-        }
-        onChange={(event) => uploadImage(event.currentTarget.files[0])}
-      />
+      {imageUrl ? (
+        <s-box padding="base" border="base" borderRadius="base">
+          <s-grid gridTemplateColumns="96px 1fr" gap="base" alignItems="center">
+            <s-image
+              src={imageUrl}
+              alt={`${productTitle} offer image`}
+              aspectRatio="1/1"
+              objectFit="contain"
+            />
+            <s-stack direction="block" gap="small">
+              <s-text type="strong">Offer image</s-text>
+              <s-button
+                type="button"
+                disabled={!canUpload || isUploading}
+                onClick={() => replacementInputRef.current?.click()}
+              >
+                Change image
+              </s-button>
+            </s-stack>
+          </s-grid>
+          <input
+            ref={replacementInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            disabled={!canUpload || isUploading}
+            onChange={uploadReplacementImage}
+            hidden
+          />
+        </s-box>
+      ) : (
+        <s-drop-zone
+          label="Upload a custom offer image"
+          accessibilityLabel="Upload a custom offer image to Shopify Files"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          disabled={!canUpload || isUploading}
+          error={
+            canUpload
+              ? ""
+              : "Reopen or reinstall the app and approve Shopify Files access first."
+          }
+          onChange={(event) => uploadImage(event.currentTarget.files[0])}
+        />
+      )}
       <s-text color="subdued">
         JPG, PNG, WEBP, or GIF up to 10 MB. Uploads are stored in Shopify Files
         and served from Shopify&apos;s CDN.

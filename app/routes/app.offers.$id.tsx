@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -118,6 +118,8 @@ export default function OfferDetailsPage() {
   } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
+  const formRef = useRef<HTMLFormElement>(null);
+  const uploadedImageToSaveRef = useRef<string | null>(null);
   const [triggerType, setTriggerType] = useState<TriggerType>(
     savedOffer.triggerType,
   );
@@ -187,6 +189,16 @@ export default function OfferDetailsPage() {
       });
     }
   }, [fetcher.data, shopify]);
+
+  useEffect(() => {
+    if (uploadedImageToSaveRef.current !== offerImageUrl) return;
+    uploadedImageToSaveRef.current = null;
+    formRef.current?.requestSubmit();
+  }, [offerImageUrl]);
+
+  const saveUploadedImage = (imageUrl: string) => {
+    uploadedImageToSaveRef.current = imageUrl;
+  };
 
   const specificVariant = upsellAction === "SPECIFIC_VARIANT";
   const previewPrice = useMemo(() => {
@@ -266,7 +278,13 @@ export default function OfferDetailsPage() {
         Back to offers
       </s-button>
 
-      <fetcher.Form method="post">
+      <fetcher.Form
+        ref={formRef}
+        method="post"
+        id="offer-editor-save-bar"
+        data-save-bar
+        onReset={() => window.location.reload()}
+      >
         <input type="hidden" name="triggerType" value={triggerType} />
         <input
           type="hidden"
@@ -429,6 +447,7 @@ export default function OfferDetailsPage() {
                     }
                     canUpload={fileWriteAccess}
                     onChange={setOfferImageUrl}
+                    onUploadComplete={saveUploadedImage}
                   />
                 </s-stack>
               </s-box>

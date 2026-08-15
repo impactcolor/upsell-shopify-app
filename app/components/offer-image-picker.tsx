@@ -12,16 +12,19 @@ export function OfferImagePicker({
   productTitle,
   canUpload,
   onChange,
+  onUploadComplete,
 }: {
   imageOptions: OfferImageOption[];
   imageUrl: string;
   productTitle: string;
   canUpload: boolean;
   onChange: (imageUrl: string) => void;
+  onUploadComplete?: (imageUrl: string) => void;
 }) {
   const uploadFetcher = useFetcher<ImageUploadResponse>();
   const shopify = useAppBridge();
   const onChangeRef = useRef(onChange);
+  const onUploadCompleteRef = useRef(onUploadComplete);
   const { data: uploadData, load, submit } = uploadFetcher;
   const [isUploading, setIsUploading] = useState(false);
   const options = useMemo(() => {
@@ -33,7 +36,8 @@ export function OfferImagePicker({
 
   useEffect(() => {
     onChangeRef.current = onChange;
-  }, [onChange]);
+    onUploadCompleteRef.current = onUploadComplete;
+  }, [onChange, onUploadComplete]);
 
   useEffect(() => {
     const data = uploadData;
@@ -42,7 +46,12 @@ export function OfferImagePicker({
       const timer = window.setTimeout(() => {
         setIsUploading(false);
         onChangeRef.current(data.imageUrl!);
-        shopify.toast.show("Image uploaded to Shopify");
+        onUploadCompleteRef.current?.(data.imageUrl!);
+        shopify.toast.show(
+          onUploadCompleteRef.current
+            ? "Image uploaded. Saving offer…"
+            : "Image uploaded. Save the offer to apply it.",
+        );
       }, 0);
       return () => window.clearTimeout(timer);
     }

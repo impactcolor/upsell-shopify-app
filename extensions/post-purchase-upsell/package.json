@@ -5,10 +5,10 @@
   "main": "dist/main.js",
   "license": "UNLICENSED",
   "dependencies": {
-    "react": "^17.0.0",
+    "react": "^19.2.8",
     "@shopify/post-purchase-ui-extensions-react": "^0.13.2"
   },
   "devDependencies": {
-    "@types/react": "^17.0.0"
+    "@types/react": "^19.2.18"
   }
 }

@@ -14,21 +14,21 @@ datasource db {
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
@@ -65,44 +65,77 @@ enum AnalyticsEventType {
 }
 
 model UpsellOffer {
-  id                   String       @id @default(cuid())
-  shop                 String
-  name                 String
-  triggerType          TriggerType  @default(PRODUCT)
-  triggerResourceId    String
-  triggerResourceTitle String
-  triggerImageUrl      String?
-  upsellAction         UpsellAction @default(SPECIFIC_VARIANT)
-  offerProductId       String?
-  offerProductTitle    String?
-  offerVariantId       String?
-  offerVariantTitle    String?
-  offerImageUrl        String?
-  offerPrice           Decimal?
-  offerCurrencyCode    String       @default("USD")
-  discountType         DiscountType @default(PERCENTAGE)
-  discountValue        Decimal
-  maxQuantity          Int          @default(1)
-  headline             String       @default("It’s not too late to add another")
-  offerDescription     String       @default("Get another qualifying item with this exclusive post-purchase offer.")
-  acceptButtonText     String       @default("Add to my order")
-  declineButtonText    String       @default("No thanks")
-  customMessage        String?
-  confirmationMessage  String       @default("Your order has been updated.")
-  showProductImage     Boolean      @default(true)
-  showVariantSelector  Boolean      @default(true)
-  showQuantitySelector Boolean      @default(true)
-  bannerBackground     String       @default("SECONDARY")
-  bannerAlignment      String       @default("CENTER")
-  imagePosition        String       @default("LEFT")
-  savingsStyle         String       @default("HIGHLIGHTED")
-  status               OfferStatus  @default(DRAFT)
-  shopifyDiscountId    String?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  id                    String                 @id @default(cuid())
+  shop                  String
+  name                  String
+  triggerType           TriggerType            @default(PRODUCT)
+  triggerResourceId     String
+  triggerResourceTitle  String
+  triggerImageUrl       String?
+  upsellAction          UpsellAction           @default(SPECIFIC_VARIANT)
+  offerProductId        String?
+  offerProductTitle     String?
+  offerVariantId        String?
+  offerVariantTitle     String?
+  offerImageUrl         String?
+  offerPrice            Decimal?
+  offerCurrencyCode     String                 @default("USD")
+  discountType          DiscountType           @default(PERCENTAGE)
+  discountValue         Decimal
+  maxQuantity           Int                    @default(1)
+  headline              String                 @default("It’s not too late to add another")
+  showHeadline          Boolean                @default(true)
+  offerDescription      String                 @default("Get another qualifying item with this exclusive post-purchase offer.")
+  descriptionPlacement  String                 @default("TOP_BANNER")
+  acceptButtonText      String                 @default("Add to my order")
+  declineButtonText     String                 @default("No thanks")
+  customMessage         String?
+  confirmationMessage   String                 @default("Your order has been updated.")
+  showProductImage      Boolean                @default(true)
+  showVariantSelector   Boolean                @default(true)
+  showQuantitySelector  Boolean                @default(true)
+  bannerBackground      String                 @default("SECONDARY")
+  bannerAlignment       String                 @default("CENTER")
+  imagePosition         String                 @default("LEFT")
+  savingsStyle          String                 @default("HIGHLIGHTED")
+  savingsLabel          String                 @default("POST-PURCHASE OFFER")
+  showSavingsLabel      Boolean                @default(true)
+  benefitsImageUrl      String?
+  showThumbnails        Boolean                @default(true)
+  showBenefitsSection   Boolean                @default(true)
+  showComparisonSection Boolean                @default(true)
+  showFooterNote        Boolean                @default(true)
+  contentSpacing        String                 @default("COMFORTABLE")
+  headingSize           String                 @default("LARGE")
+  imageFit              String                 @default("CONTAIN")
+  benefitsImageFit      String                 @default("COVER")
+  status                OfferStatus            @default(DRAFT)
+  shopifyDiscountId     String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  customContentSections CustomContentSection[]
 
   @@index([shop, status])
   @@index([shop, triggerType, triggerResourceId])
+}
+
+model CustomContentSection {
+  id              String      @id @default(cuid())
+  offerId         String
+  desktopImageUrl String?
+  mobileImageUrl  String?
+  altText         String      @default("")
+  heading         String?
+  body            String?
+  placement       String      @default("BETWEEN_SECTIONS")
+  imageFit        String      @default("CONTAIN")
+  spacing         String      @default("COMFORTABLE")
+  enabled         Boolean     @default(true)
+  position        Int
+  offer           UpsellOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([offerId, position])
+  @@index([offerId])
 }
 
 model WebhookDelivery {

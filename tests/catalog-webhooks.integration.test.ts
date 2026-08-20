@@ -78,8 +78,11 @@ try {
   );
   assert.equal(duplicate.duplicate, true);
   assert.equal(
-    (await database.upsellOffer.findUniqueOrThrow({ where: { id: "product-offer" } }))
-      .status,
+    (
+      await database.upsellOffer.findUniqueOrThrow({
+        where: { id: "product-offer" },
+      })
+    ).status,
     "ACTIVE",
   );
 
@@ -93,8 +96,11 @@ try {
     database,
   );
   assert.equal(
-    (await database.upsellOffer.findUniqueOrThrow({ where: { id: "product-offer" } }))
-      .status,
+    (
+      await database.upsellOffer.findUniqueOrThrow({
+        where: { id: "product-offer" },
+      })
+    ).status,
     "PAUSED",
   );
 
@@ -122,8 +128,11 @@ try {
     database,
   );
   assert.equal(
-    (await database.upsellOffer.findUniqueOrThrow({ where: { id: "collection-offer" } }))
-      .status,
+    (
+      await database.upsellOffer.findUniqueOrThrow({
+        where: { id: "collection-offer" },
+      })
+    ).status,
     "PAUSED",
   );
 
@@ -136,7 +145,10 @@ try {
       accessToken: "test-token",
     },
   });
-  await database.upsellOffer.updateMany({ where: { shop }, data: { status: "ACTIVE" } });
+  await database.upsellOffer.updateMany({
+    where: { shop },
+    data: { status: "ACTIVE" },
+  });
   await processAppWebhook(
     {
       shop,
@@ -209,7 +221,9 @@ async function createSchema(client: PrismaClient) {
       "discountValue" DECIMAL NOT NULL,
       "maxQuantity" INTEGER NOT NULL DEFAULT 1,
       "headline" TEXT NOT NULL DEFAULT 'It’s not too late to add another',
+      "showHeadline" BOOLEAN NOT NULL DEFAULT true,
       "offerDescription" TEXT NOT NULL DEFAULT 'Get another qualifying item with this exclusive post-purchase offer.',
+      "descriptionPlacement" TEXT NOT NULL DEFAULT 'TOP_BANNER',
       "acceptButtonText" TEXT NOT NULL DEFAULT 'Add to my order',
       "declineButtonText" TEXT NOT NULL DEFAULT 'No thanks',
       "customMessage" TEXT,
@@ -221,6 +235,17 @@ async function createSchema(client: PrismaClient) {
       "bannerAlignment" TEXT NOT NULL DEFAULT 'CENTER',
       "imagePosition" TEXT NOT NULL DEFAULT 'LEFT',
       "savingsStyle" TEXT NOT NULL DEFAULT 'HIGHLIGHTED',
+      "savingsLabel" TEXT NOT NULL DEFAULT 'POST-PURCHASE OFFER',
+      "showSavingsLabel" BOOLEAN NOT NULL DEFAULT true,
+      "benefitsImageUrl" TEXT,
+      "showThumbnails" BOOLEAN NOT NULL DEFAULT true,
+      "showBenefitsSection" BOOLEAN NOT NULL DEFAULT true,
+      "showComparisonSection" BOOLEAN NOT NULL DEFAULT true,
+      "showFooterNote" BOOLEAN NOT NULL DEFAULT true,
+      "contentSpacing" TEXT NOT NULL DEFAULT 'COMFORTABLE',
+      "headingSize" TEXT NOT NULL DEFAULT 'LARGE',
+      "imageFit" TEXT NOT NULL DEFAULT 'CONTAIN',
+      "benefitsImageFit" TEXT NOT NULL DEFAULT 'COVER',
       "status" TEXT NOT NULL DEFAULT 'DRAFT',
       "shopifyDiscountId" TEXT,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

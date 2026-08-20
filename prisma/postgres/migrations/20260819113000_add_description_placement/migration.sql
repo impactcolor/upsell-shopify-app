@@ -1,0 +1,2 @@
+ALTER TABLE "UpsellOffer"
+ADD COLUMN "descriptionPlacement" TEXT NOT NULL DEFAULT 'TOP_BANNER';

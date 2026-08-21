@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useFetcher } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
@@ -19,6 +13,7 @@ export function OfferImagePicker({
   canUpload,
   onChange,
   onUploadComplete,
+  label = "Offer image",
 }: {
   imageOptions: OfferImageOption[];
   imageUrl: string;
@@ -26,6 +21,7 @@ export function OfferImagePicker({
   canUpload: boolean;
   onChange: (imageUrl: string) => void;
   onUploadComplete?: (imageUrl: string) => void;
+  label?: string;
 }) {
   const uploadFetcher = useFetcher<ImageUploadResponse>();
   const shopify = useAppBridge();
@@ -38,7 +34,10 @@ export function OfferImagePicker({
     if (!imageUrl || imageOptions.some((option) => option.url === imageUrl)) {
       return imageOptions;
     }
-    return [{ url: imageUrl, label: "Uploaded Shopify image" }, ...imageOptions];
+    return [
+      { url: imageUrl, label: "Uploaded Shopify image" },
+      ...imageOptions,
+    ];
   }, [imageOptions, imageUrl]);
 
   useEffect(() => {
@@ -101,7 +100,7 @@ export function OfferImagePicker({
     <s-stack direction="block" gap="base">
       {options.length > 0 && (
         <s-select
-          label="Offer image"
+          label={label}
           value={imageUrl}
           onChange={(event) => onChange(event.currentTarget.value)}
         >
@@ -123,7 +122,7 @@ export function OfferImagePicker({
               objectFit="contain"
             />
             <s-stack direction="block" gap="small">
-              <s-text type="strong">Offer image</s-text>
+              <s-text type="strong">{label}</s-text>
               <s-button
                 type="button"
                 disabled={!canUpload || isUploading}
@@ -131,6 +130,16 @@ export function OfferImagePicker({
               >
                 Change image
               </s-button>
+              <s-button
+                type="button"
+                variant="tertiary"
+                onClick={() => onChange("")}
+              >
+                Remove image
+              </s-button>
+              <s-text color="subdued">
+                Removing the override uses the purchased product image.
+              </s-text>
             </s-stack>
           </s-grid>
           <input
@@ -144,8 +153,8 @@ export function OfferImagePicker({
         </s-box>
       ) : (
         <s-drop-zone
-          label="Upload a custom offer image"
-          accessibilityLabel="Upload a custom offer image to Shopify Files"
+          label={`Upload ${label.toLowerCase()}`}
+          accessibilityLabel={`Upload ${label.toLowerCase()} to Shopify Files`}
           accept="image/jpeg,image/png,image/webp,image/gif"
           disabled={!canUpload || isUploading}
           error={

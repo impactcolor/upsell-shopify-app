@@ -80,7 +80,15 @@ export type PostPurchaseOfferPayload = {
     purchasedLineProperties: PurchasedLineProperty[];
     content: {
       headline: string;
+      showHeadline: boolean;
       description: string;
+      descriptionPlacement:
+        | "top_banner"
+        | "under_title"
+        | "after_price"
+        | "before_quantity"
+        | "after_quantity"
+        | "before_pay_button";
       customMessage: string | null;
       confirmationMessage: string;
       showProductImage: boolean;
@@ -90,6 +98,36 @@ export type PostPurchaseOfferPayload = {
       bannerAlignment: "center" | "leading";
       imagePosition: "left" | "above";
       savingsStyle: "highlighted" | "subtle";
+      savingsLabel: string;
+      showSavingsLabel: boolean;
+      benefitsImageUrl: string | null;
+      showThumbnails: boolean;
+      showBenefitsSection: boolean;
+      showComparisonSection: boolean;
+      showFooterNote: boolean;
+      contentSpacing: "compact" | "comfortable" | "spacious";
+      headingSize: "medium" | "large" | "xlarge";
+      imageFit: "contain" | "cover";
+      benefitsImageFit: "contain" | "cover";
+      customContentSections: Array<{
+        id: string;
+        desktopImageUrl: string | null;
+        mobileImageUrl: string | null;
+        altText: string;
+        heading: string | null;
+        body: string | null;
+        placement:
+          | "before_offer"
+          | "after_price"
+          | "before_quantity"
+          | "after_quantity"
+          | "before_pay_button"
+          | "after_offer"
+          | "between_sections";
+        imageFit: "contain" | "cover";
+        spacing: "compact" | "comfortable" | "spacious";
+        enabled: boolean;
+      }>;
     };
     candidates: OfferCandidate[];
   };
@@ -107,6 +145,7 @@ export const getEligiblePostPurchaseOffer = async ({
   const offers = await prisma.upsellOffer.findMany({
     where: { shop, status: "ACTIVE" },
     orderBy: { createdAt: "asc" },
+    include: { customContentSections: { orderBy: { position: "asc" } } },
   });
   console.info("[post-purchase] Loaded configuration", {
     shop,
@@ -150,18 +189,14 @@ export const getEligiblePostPurchaseOffer = async ({
       offerId: offer.id,
       triggerType: offer.triggerType,
       triggerResourceId: offer.triggerResourceId,
-      eligibility: eligibility.eligible
-        ? "ELIGIBLE"
-        : eligibility.reason,
+      eligibility: eligibility.eligible ? "ELIGIBLE" : eligibility.reason,
     });
 
     if (!eligibility.eligible) continue;
 
     const variants = variantsForAction(offer, eligibility.line, catalog);
     const candidates = variants
-      .map((variant) =>
-        createCandidate({ shop, referenceId, offer, variant }),
-      )
+      .map((variant) => createCandidate({ shop, referenceId, offer, variant }))
       .filter((candidate): candidate is OfferCandidate => candidate !== null);
 
     console.info("[post-purchase] Built candidates", {
@@ -190,7 +225,20 @@ export const getEligiblePostPurchaseOffer = async ({
             ) ?? [],
           content: {
             headline: offer.headline,
+            showHeadline: offer.showHeadline,
             description: offer.offerDescription,
+            descriptionPlacement:
+              offer.descriptionPlacement === "UNDER_TITLE"
+                ? "under_title"
+                : offer.descriptionPlacement === "AFTER_PRICE"
+                  ? "after_price"
+                  : offer.descriptionPlacement === "BEFORE_QUANTITY"
+                    ? "before_quantity"
+                    : offer.descriptionPlacement === "AFTER_QUANTITY"
+                      ? "after_quantity"
+                      : offer.descriptionPlacement === "BEFORE_PAY_BUTTON"
+                        ? "before_pay_button"
+                        : "top_banner",
             customMessage: offer.customMessage,
             confirmationMessage: offer.confirmationMessage,
             showProductImage: offer.showProductImage,
@@ -202,10 +250,63 @@ export const getEligiblePostPurchaseOffer = async ({
                 : "secondary",
             bannerAlignment:
               offer.bannerAlignment === "LEADING" ? "leading" : "center",
-            imagePosition:
-              offer.imagePosition === "ABOVE" ? "above" : "left",
+            imagePosition: offer.imagePosition === "ABOVE" ? "above" : "left",
             savingsStyle:
               offer.savingsStyle === "SUBTLE" ? "subtle" : "highlighted",
+            savingsLabel: offer.savingsLabel,
+            showSavingsLabel: offer.showSavingsLabel,
+            benefitsImageUrl: offer.benefitsImageUrl,
+            showThumbnails: offer.showThumbnails,
+            showBenefitsSection: offer.showBenefitsSection,
+            showComparisonSection: offer.showComparisonSection,
+            showFooterNote: offer.showFooterNote,
+            contentSpacing:
+              offer.contentSpacing === "COMPACT"
+                ? "compact"
+                : offer.contentSpacing === "SPACIOUS"
+                  ? "spacious"
+                  : "comfortable",
+            headingSize:
+              offer.headingSize === "MEDIUM"
+                ? "medium"
+                : offer.headingSize === "XLARGE"
+                  ? "xlarge"
+                  : "large",
+            imageFit: offer.imageFit === "COVER" ? "cover" : "contain",
+            benefitsImageFit:
+              offer.benefitsImageFit === "CONTAIN" ? "contain" : "cover",
+            customContentSections: offer.customContentSections.map(
+              (section) => ({
+                id: section.id,
+                desktopImageUrl: section.desktopImageUrl,
+                mobileImageUrl: section.mobileImageUrl,
+                altText: section.altText,
+                heading: section.heading,
+                body: section.body,
+                placement:
+                  section.placement === "BEFORE_OFFER"
+                    ? "before_offer"
+                    : section.placement === "AFTER_PRICE"
+                      ? "after_price"
+                      : section.placement === "BEFORE_QUANTITY"
+                        ? "before_quantity"
+                        : section.placement === "AFTER_QUANTITY"
+                          ? "after_quantity"
+                          : section.placement === "BEFORE_PAY_BUTTON"
+                            ? "before_pay_button"
+                            : section.placement === "AFTER_OFFER"
+                              ? "after_offer"
+                              : "between_sections",
+                imageFit: section.imageFit === "COVER" ? "cover" : "contain",
+                spacing:
+                  section.spacing === "COMPACT"
+                    ? "compact"
+                    : section.spacing === "SPACIOUS"
+                      ? "spacious"
+                      : "comfortable",
+                enabled: section.enabled,
+              }),
+            ),
           },
           candidates,
         },
@@ -236,7 +337,11 @@ export const signPostPurchaseChangeset = ({
   if (selection.shop !== shop || selection.referenceId !== referenceId) {
     throw new Error("Offer selection does not belong to this purchase");
   }
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > selection.maxQuantity) {
+  if (
+    !Number.isInteger(quantity) ||
+    quantity < 1 ||
+    quantity > selection.maxQuantity
+  ) {
     throw new Error("Requested quantity is not allowed");
   }
 
@@ -302,7 +407,10 @@ const createCandidate = ({
   );
 
   const primaryImageUrl =
-    offer.offerImageUrl || variant.imageUrl || variant.product.imageUrls[0] || null;
+    offer.offerImageUrl ||
+    variant.imageUrl ||
+    variant.product.imageUrls[0] ||
+    null;
   const imageUrls = [primaryImageUrl, ...variant.product.imageUrls].filter(
     (imageUrl, index, images): imageUrl is string =>
       Boolean(imageUrl) && images.indexOf(imageUrl) === index,
@@ -378,9 +486,9 @@ const variantsForAction = (
 ) => {
   if (offer.upsellAction === "SPECIFIC_VARIANT") {
     return offer.offerVariantId
-      ? [catalog.byVariantId.get(normalizeShopifyId(offer.offerVariantId))].filter(
-          (variant): variant is CatalogVariant => Boolean(variant),
-        )
+      ? [
+          catalog.byVariantId.get(normalizeShopifyId(offer.offerVariantId)),
+        ].filter((variant): variant is CatalogVariant => Boolean(variant))
       : [];
   }
 
@@ -390,9 +498,9 @@ const variantsForAction = (
   if (!matchingVariant) return [];
 
   return offer.upsellAction === "MATCHING_PRODUCT_SELECT_VARIANT"
-    ? catalog.variantsByProductId.get(
+    ? (catalog.variantsByProductId.get(
         normalizeShopifyId(matchingVariant.product.id),
-      ) ?? []
+      ) ?? [])
     : [matchingVariant];
 };
 
@@ -454,8 +562,8 @@ const loadCatalog = async (shop: string, variantIds: string[]) => {
     const product = {
       id: node.product.id,
       title: node.product.title,
-      collectionIds: node.product.collections.nodes.map((item: { id: string }) =>
-        normalizeShopifyId(item.id),
+      collectionIds: node.product.collections.nodes.map(
+        (item: { id: string }) => normalizeShopifyId(item.id),
       ),
       imageUrls: (node.product.images?.nodes ?? []).map((image) => image.url),
     };
@@ -463,7 +571,12 @@ const loadCatalog = async (shop: string, variantIds: string[]) => {
     byProductId.set(productId, product);
 
     const siblings: CatalogVariant[] = node.product.variants.nodes.map(
-      (variant: { id: string; title: string; price: string; image?: { url: string } | null }) => ({
+      (variant: {
+        id: string;
+        title: string;
+        price: string;
+        image?: { url: string } | null;
+      }) => ({
         id: variant.id,
         title: variant.title,
         price: variant.price,
@@ -509,7 +622,11 @@ const loadPurchasedLineProperties = async (
           }
         }
       `,
-      { variables: { query: `checkout_token:${quoteSearchValue(checkoutToken)}` } },
+      {
+        variables: {
+          query: `checkout_token:${quoteSearchValue(checkoutToken)}`,
+        },
+      },
     );
     const json = (await response.json()) as {
       errors?: unknown;
@@ -579,7 +696,9 @@ export const sanitizeLineItemProperties = (
 const quoteSearchValue = (value: string) =>
   `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 
-const isTrustedChange = (value: unknown): value is {
+const isTrustedChange = (
+  value: unknown,
+): value is {
   type: "add_variant";
   variantId: number;
   quantity: number;
@@ -632,9 +751,10 @@ const normalizeShopifyId = (id: string | number) => {
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
 const formatMoney = (amount: number, currencyCode: string) =>
-  new Intl.NumberFormat("en", { style: "currency", currency: currencyCode }).format(
-    amount,
-  );
+  new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: currencyCode,
+  }).format(amount);
 
 const requiredEnv = (key: "SHOPIFY_API_KEY" | "SHOPIFY_API_SECRET") => {
   const value = process.env[key];

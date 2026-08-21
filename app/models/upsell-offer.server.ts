@@ -37,6 +37,66 @@ const limitedString = (value: string, label: string, maxLength: number) => {
   return value;
 };
 
+const CUSTOM_CONTENT_PLACEMENTS = new Set([
+  "BEFORE_OFFER",
+  "AFTER_PRICE",
+  "BEFORE_QUANTITY",
+  "AFTER_QUANTITY",
+  "BEFORE_PAY_BUTTON",
+  "AFTER_OFFER",
+  "BETWEEN_SECTIONS",
+]);
+
+export const parseCustomContentSections = (formData: FormData) => {
+  if (!formData.has("customSectionsPresent")) return [];
+  const requestedCount = Number(formData.get("customSectionCount") ?? 0);
+  const count = Number.isInteger(requestedCount)
+    ? Math.min(Math.max(requestedCount, 0), 4)
+    : 0;
+
+  return Array.from({ length: count }, (_, position) => {
+    const prefix = `customSection_${position}_`;
+    const desktopImageUrl = optionalString(
+      formData,
+      `${prefix}desktopImageUrl`,
+    );
+    const mobileImageUrl = optionalString(formData, `${prefix}mobileImageUrl`);
+    const headingValue = optionalString(formData, `${prefix}heading`);
+    const bodyValue = optionalString(formData, `${prefix}body`);
+    const altTextValue = optionalString(formData, `${prefix}altText`) ?? "";
+    const rawPlacement = optionalString(formData, `${prefix}placement`);
+    const rawImageFit = optionalString(formData, `${prefix}imageFit`);
+    const rawSpacing = optionalString(formData, `${prefix}spacing`);
+
+    if (!desktopImageUrl && !mobileImageUrl && !headingValue && !bodyValue) {
+      throw new Error(
+        `Custom content section ${position + 1} needs an image or text`,
+      );
+    }
+
+    return {
+      desktopImageUrl,
+      mobileImageUrl,
+      altText: limitedString(altTextValue, "Image description", 200),
+      heading: headingValue
+        ? limitedString(headingValue, "Section heading", 120)
+        : null,
+      body: bodyValue ? limitedString(bodyValue, "Section content", 500) : null,
+      placement:
+        rawPlacement && CUSTOM_CONTENT_PLACEMENTS.has(rawPlacement)
+          ? rawPlacement
+          : "BETWEEN_SECTIONS",
+      imageFit: rawImageFit === "COVER" ? "COVER" : "CONTAIN",
+      spacing:
+        rawSpacing === "COMPACT" || rawSpacing === "SPACIOUS"
+          ? rawSpacing
+          : "COMFORTABLE",
+      enabled: formData.getAll(`${prefix}enabled`).includes("true"),
+      position,
+    };
+  });
+};
+
 const decimalNumber = (formData: FormData, key: string) => {
   const value = Number(requiredString(formData, key));
   if (!Number.isFinite(value)) throw new Error(`${key} must be a number`);
@@ -83,23 +143,27 @@ export const parseOfferForm = (formData: FormData) => {
   const offerPrice = optionalDecimalNumber(formData, "offerPrice");
   const maxQuantity = integerNumber(formData, "maxQuantity");
   const headline = limitedString(
-    stringWithDefault(
-      formData,
-      "headline",
-      "It’s not too late to add another",
-    ),
+    stringWithDefault(formData, "headline", "It’s not too late to add another"),
     "Headline",
     80,
   );
-  const offerDescription = limitedString(
-    stringWithDefault(
-      formData,
-      "offerDescription",
-      "Get another qualifying item with this exclusive post-purchase offer.",
-    ),
-    "Offer description",
-    240,
+  const rawOfferDescription = optionalString(formData, "offerDescription");
+  const offerDescription = rawOfferDescription
+    ? limitedString(rawOfferDescription, "Offer description", 240)
+    : "";
+  const rawDescriptionPlacement = optionalString(
+    formData,
+    "descriptionPlacement",
   );
+  const descriptionPlacement = [
+    "UNDER_TITLE",
+    "AFTER_PRICE",
+    "BEFORE_QUANTITY",
+    "AFTER_QUANTITY",
+    "BEFORE_PAY_BUTTON",
+  ].includes(rawDescriptionPlacement ?? "")
+    ? rawDescriptionPlacement!
+    : "TOP_BANNER";
   const customMessageValue = optionalString(formData, "customMessage");
   const customMessage = customMessageValue
     ? limitedString(customMessageValue, "Custom message", 200)
@@ -122,8 +186,17 @@ export const parseOfferForm = (formData: FormData) => {
   const rawImagePosition = optionalString(formData, "imagePosition");
   const imagePosition = rawImagePosition === "ABOVE" ? "ABOVE" : "LEFT";
   const rawSavingsStyle = optionalString(formData, "savingsStyle");
-  const savingsStyle =
-    rawSavingsStyle === "SUBTLE" ? "SUBTLE" : "HIGHLIGHTED";
+  const savingsStyle = rawSavingsStyle === "SUBTLE" ? "SUBTLE" : "HIGHLIGHTED";
+  const showHeadline = formData.has("contentSettingsPresent")
+    ? formData.getAll("showHeadline").includes("true")
+    : true;
+  const rawSavingsLabel = optionalString(formData, "savingsLabel");
+  const savingsLabel = rawSavingsLabel
+    ? limitedString(rawSavingsLabel, "Savings label", 60)
+    : "";
+  const showSavingsLabel = formData.has("contentSettingsPresent")
+    ? formData.getAll("showSavingsLabel").includes("true")
+    : true;
   const showProductImage = formData.has("contentSettingsPresent")
     ? formData.getAll("showProductImage").includes("true")
     : true;
@@ -133,6 +206,35 @@ export const parseOfferForm = (formData: FormData) => {
   const showQuantitySelector = formData.has("contentSettingsPresent")
     ? formData.getAll("showQuantitySelector").includes("true")
     : true;
+  const benefitsImageUrl = optionalString(formData, "benefitsImageUrl");
+  const showThumbnails = formData.has("contentSettingsPresent")
+    ? formData.getAll("showThumbnails").includes("true")
+    : true;
+  const showBenefitsSection = formData.has("contentSettingsPresent")
+    ? formData.getAll("showBenefitsSection").includes("true")
+    : true;
+  const showComparisonSection = formData.has("contentSettingsPresent")
+    ? formData.getAll("showComparisonSection").includes("true")
+    : true;
+  const showFooterNote = formData.has("contentSettingsPresent")
+    ? formData.getAll("showFooterNote").includes("true")
+    : true;
+  const rawContentSpacing = optionalString(formData, "contentSpacing");
+  const contentSpacing =
+    rawContentSpacing === "COMPACT" || rawContentSpacing === "SPACIOUS"
+      ? rawContentSpacing
+      : "COMFORTABLE";
+  const rawHeadingSize = optionalString(formData, "headingSize");
+  const headingSize =
+    rawHeadingSize === "MEDIUM" || rawHeadingSize === "XLARGE"
+      ? rawHeadingSize
+      : "LARGE";
+  const imageFit =
+    optionalString(formData, "imageFit") === "COVER" ? "COVER" : "CONTAIN";
+  const benefitsImageFit =
+    optionalString(formData, "benefitsImageFit") === "CONTAIN"
+      ? "CONTAIN"
+      : "COVER";
 
   if (discountValue <= 0) {
     throw new Error("Discount value must be greater than zero");
@@ -192,7 +294,9 @@ export const parseOfferForm = (formData: FormData) => {
     discountValue,
     maxQuantity,
     headline,
+    showHeadline,
     offerDescription,
+    descriptionPlacement,
     // Shopify requires these actions to use prescribed checkout language. The
     // columns remain for backwards-compatible migrations, but merchant input
     // must never override the buyer-facing labels.
@@ -207,6 +311,17 @@ export const parseOfferForm = (formData: FormData) => {
     bannerAlignment,
     imagePosition,
     savingsStyle,
+    savingsLabel,
+    showSavingsLabel,
+    benefitsImageUrl,
+    showThumbnails,
+    showBenefitsSection,
+    showComparisonSection,
+    showFooterNote,
+    contentSpacing,
+    headingSize,
+    imageFit,
+    benefitsImageFit,
     status,
   };
 };
@@ -225,9 +340,7 @@ export const ensureOfferIsUnique = async (
       triggerResourceId: offer.triggerResourceId,
       upsellAction: offer.upsellAction,
       offerVariantId:
-        offer.upsellAction === "SPECIFIC_VARIANT"
-          ? offer.offerVariantId
-          : null,
+        offer.upsellAction === "SPECIFIC_VARIANT" ? offer.offerVariantId : null,
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
     select: { name: true },

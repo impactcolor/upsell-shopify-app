@@ -153,20 +153,9 @@ function OfferApp({ extensionInput }) {
     : [];
   const content = {
     headline: offer.content?.headline || "It’s not too late to add another",
-    showHeadline: offer.content?.showHeadline !== false,
     description:
-      typeof offer.content?.description === "string"
-        ? offer.content.description
-        : "Get another qualifying item with this exclusive post-purchase offer.",
-    descriptionPlacement: [
-      "under_title",
-      "after_price",
-      "before_quantity",
-      "after_quantity",
-      "before_pay_button",
-    ].includes(offer.content?.descriptionPlacement)
-      ? offer.content.descriptionPlacement
-      : "top_banner",
+      offer.content?.description ||
+      "Get another qualifying item with this exclusive post-purchase offer.",
     customMessage: offer.content?.customMessage || "",
     confirmationMessage:
       offer.content?.confirmationMessage || "Your order has been updated.",
@@ -179,39 +168,10 @@ function OfferApp({ extensionInput }) {
         : "secondary",
     bannerAlignment:
       offer.content?.bannerAlignment === "leading" ? "leading" : "center",
-    imagePosition: offer.content?.imagePosition === "above" ? "above" : "left",
+    imagePosition:
+      offer.content?.imagePosition === "above" ? "above" : "left",
     savingsStyle:
       offer.content?.savingsStyle === "subtle" ? "subtle" : "highlighted",
-    savingsLabel:
-      typeof offer.content?.savingsLabel === "string"
-        ? offer.content.savingsLabel
-        : "POST-PURCHASE OFFER",
-    showSavingsLabel: offer.content?.showSavingsLabel !== false,
-    benefitsImageUrl: offer.content?.benefitsImageUrl || "",
-    showThumbnails: offer.content?.showThumbnails !== false,
-    showBenefitsSection: offer.content?.showBenefitsSection !== false,
-    showComparisonSection: offer.content?.showComparisonSection !== false,
-    showFooterNote: offer.content?.showFooterNote !== false,
-    contentSpacing:
-      offer.content?.contentSpacing === "compact"
-        ? "tight"
-        : offer.content?.contentSpacing === "spacious"
-          ? "xloose"
-          : "loose",
-    headingSize:
-      offer.content?.headingSize === "medium"
-        ? "medium"
-        : offer.content?.headingSize === "xlarge"
-          ? "xlarge"
-          : "large",
-    imageFit: offer.content?.imageFit === "cover" ? "cover" : "contain",
-    benefitsImageFit:
-      offer.content?.benefitsImageFit === "contain" ? "contain" : "cover",
-    customContentSections: Array.isArray(offer.content?.customContentSections)
-      ? offer.content.customContentSections
-          .filter((section) => section && section.enabled !== false)
-          .slice(0, 4)
-      : [],
   };
   const [candidateId, setCandidateId] = useState(offer.candidates[0].id);
   const [quantity, setQuantity] = useState(1);
@@ -314,9 +274,7 @@ function OfferApp({ extensionInput }) {
 
       const result = await applyChangeset(body.token);
       if (result.status === "unprocessed") {
-        throw new Error(
-          result.errors?.[0]?.message || "The offer was not added.",
-        );
+        throw new Error(result.errors?.[0]?.message || "The offer was not added.");
       }
       await trackAnalytics({
         inputData,
@@ -336,9 +294,7 @@ function OfferApp({ extensionInput }) {
         quantity,
         failureStage: "accept",
       });
-      setError(
-        caught instanceof Error ? caught.message : "The offer was not added.",
-      );
+      setError(caught instanceof Error ? caught.message : "The offer was not added.");
       setLoading(false);
     }
   };
@@ -364,28 +320,12 @@ function OfferApp({ extensionInput }) {
     calculatedPurchase?.addedShippingLines?.[0]?.priceSet?.presentmentMoney
       ?.amount;
   const taxes = calculatedPurchase?.addedTaxLines?.reduce(
-    (total, line) => total + Number(line.priceSet.presentmentMoney.amount || 0),
+    (total, line) =>
+      total + Number(line.priceSet.presentmentMoney.amount || 0),
     0,
   );
-  const total =
-    calculatedPurchase?.totalOutstandingSet?.presentmentMoney?.amount;
+  const total = calculatedPurchase?.totalOutstandingSet?.presentmentMoney?.amount;
   const originalTotal = Number(candidate.originalPrice) * quantity;
-  const discountedTotalNumber = Number(discountedTotal);
-  const savingsAmount = Number.isFinite(discountedTotalNumber)
-    ? Math.max(0, originalTotal - discountedTotalNumber)
-    : null;
-  const offerUnitPrice =
-    Number.isFinite(discountedTotalNumber) && quantity > 0
-      ? discountedTotalNumber / quantity
-      : null;
-  const bundleRegularTotal =
-    Number(candidate.originalPrice) * offer.maxQuantity;
-  const bundleOfferTotal =
-    offerUnitPrice === null ? null : offerUnitPrice * offer.maxQuantity;
-  const bundleSavings =
-    bundleOfferTotal === null
-      ? null
-      : Math.max(0, bundleRegularTotal - bundleOfferTotal);
   const centeredSectionMedia = [
     { viewportSize: "small", maxInlineSize: 0.95, sizes: [1] },
     { viewportSize: "medium", maxInlineSize: 0.85, sizes: [1] },
@@ -401,12 +341,12 @@ function OfferApp({ extensionInput }) {
         {
           viewportSize: "medium",
           maxInlineSize: 0.85,
-          sizes: [0.48, 0.04, "fill"],
+          sizes: [0.492, 0.016, "fill"],
         },
         {
           viewportSize: "large",
           maxInlineSize: 900,
-          sizes: [0.48, 0.04, "fill"],
+          sizes: [0.492, 0.016, "fill"],
         },
       ]
     : [
@@ -435,14 +375,20 @@ function OfferApp({ extensionInput }) {
     {
       viewportSize: "medium",
       maxInlineSize: 0.85,
-      sizes: [0.52, 0.03, "fill"],
+      sizes: ["fill", 0.03, 0.385],
     },
     {
       viewportSize: "large",
       maxInlineSize: 900,
-      sizes: [0.52, 0.03, "fill"],
+      sizes: ["fill", 0.03, 0.385],
     },
   ];
+  const closingControlsMedia = [
+    { viewportSize: "small", maxInlineSize: 0.95, sizes: [1] },
+    { viewportSize: "medium", maxInlineSize: 500, sizes: [1] },
+    { viewportSize: "large", maxInlineSize: 450, sizes: [1] },
+  ];
+
   if (accepted) {
     return (
       <BlockStack spacing="loose">
@@ -465,108 +411,17 @@ function OfferApp({ extensionInput }) {
       ? [candidate.imageUrl]
       : [];
   const primaryImageUrl = candidateImageUrls[0] || candidate.imageUrl;
-  const supportingImageUrl = content.benefitsImageUrl || candidateImageUrls[1];
-  const benefitLines = content.customMessage
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const benefitHeading = benefitLines[0] || "";
-  const benefitItems =
-    benefitLines.length > 1
-      ? benefitLines.slice(1, 5)
-      : [
-          "Easy to add to your existing order",
-          "Same product and selected options",
-          "No need to start checkout again",
-        ];
+  const supportingImageUrls = candidateImageUrls.slice(1, 3);
+  const primarySupportingImageUrl = supportingImageUrls[0];
+  const remainingSupportingImageUrls = supportingImageUrls.slice(1);
   const productImage =
     content.showProductImage && primaryImageUrl ? (
       <Image
         source={primaryImageUrl}
         description={candidate.productTitle}
         bordered
-        aspectRatio={1}
-        fit={content.imageFit}
+        fit="contain"
       />
-    ) : null;
-  const productGallery = content.showProductImage ? (
-    <BlockStack spacing="tight">
-      {productImage}
-      {content.showThumbnails && candidateImageUrls.length > 1 ? (
-        <Tiles maxPerLine={3} spacing="tight" alignment="center">
-          {candidateImageUrls.slice(0, 3).map((imageUrl, index) => (
-            <View key={imageUrl}>
-              <Image
-                source={imageUrl}
-                description={`${candidate.productTitle} view ${index + 1}`}
-                bordered
-                loading={index === 0 ? undefined : "lazy"}
-                aspectRatio={1}
-                fit="contain"
-              />
-            </View>
-          ))}
-        </Tiles>
-      ) : null}
-    </BlockStack>
-  ) : null;
-
-  const renderCustomContentSections = (placement, withinOffer = false) =>
-    content.customContentSections
-      .filter((section) => section.placement === placement)
-      .map((section) => {
-        const desktopImageUrl = section.desktopImageUrl || "";
-        const mobileImageUrl = section.mobileImageUrl || "";
-        const fallbackImageUrl = desktopImageUrl || mobileImageUrl;
-        const sources = [
-          mobileImageUrl
-            ? { source: mobileImageUrl, viewportSize: "small" }
-            : null,
-          desktopImageUrl
-            ? { source: desktopImageUrl, viewportSize: "medium" }
-            : null,
-          desktopImageUrl
-            ? { source: desktopImageUrl, viewportSize: "large" }
-            : null,
-        ].filter(Boolean);
-        const spacing =
-          section.spacing === "compact"
-            ? "tight"
-            : section.spacing === "spacious"
-              ? "xloose"
-              : "loose";
-        const sectionContent = (
-          <BlockStack spacing={spacing}>
-            {fallbackImageUrl ? (
-              <Image
-                source={fallbackImageUrl}
-                sources={sources}
-                description={section.altText || "Offer information"}
-                loading="lazy"
-                fit={section.imageFit === "cover" ? "cover" : "contain"}
-              />
-            ) : null}
-            {section.heading || section.body ? (
-              <TextContainer spacing="tight">
-                {section.heading ? <Heading>{section.heading}</Heading> : null}
-                {section.body ? <TextBlock>{section.body}</TextBlock> : null}
-              </TextContainer>
-            ) : null}
-          </BlockStack>
-        );
-
-        return withinOffer ? (
-          <View key={section.id}>{sectionContent}</View>
-        ) : (
-          <Layout key={section.id} media={centeredSectionMedia}>
-            <View>{sectionContent}</View>
-          </Layout>
-        );
-      });
-
-  const renderOfferDescription = (placement) =>
-    content.description && content.descriptionPlacement === placement ? (
-      <TextBlock>{content.description}</TextBlock>
     ) : null;
 
   const renderPurchaseControls = () => (
@@ -582,10 +437,9 @@ function OfferApp({ extensionInput }) {
             currencyCode={currencyCode}
           />
           <MoneyLine
-            label="Shipping"
+            label="Additional shipping"
             amount={shipping}
             currencyCode={currencyCode}
-            showFree
           />
           <MoneyLine
             label="Additional taxes"
@@ -593,7 +447,7 @@ function OfferApp({ extensionInput }) {
             currencyCode={currencyCode}
           />
           <MoneyLine
-            label="Total"
+            label="Amount due now"
             amount={total}
             currencyCode={currencyCode}
             emphasized
@@ -604,9 +458,6 @@ function OfferApp({ extensionInput }) {
       {error ? (
         <CalloutBanner title="Offer unavailable">{error}</CalloutBanner>
       ) : null}
-
-      {renderOfferDescription("before_pay_button")}
-      {renderCustomContentSections("before_pay_button", true)}
 
       <Button
         submit
@@ -625,18 +476,10 @@ function OfferApp({ extensionInput }) {
   );
 
   const offerDetails = (
-    <BlockStack spacing="tight">
-      <TextContainer spacing="tight">
-        <TextBlock>
-          <Text size={content.headingSize} emphasized>
-            {quantity > 1 ? `${quantity} More of ` : ""}
-            {candidate.productTitle}
-          </Text>
-        </TextBlock>
-        <TextBlock>
-          {candidate.variantTitle || "Exactly like the item you just ordered."}
-        </TextBlock>
-        {renderOfferDescription("under_title")}
+    <BlockStack spacing="loose">
+      <TextContainer>
+        <Heading>{candidate.productTitle}</Heading>
+        <TextBlock>{candidate.variantTitle}</TextBlock>
       </TextContainer>
 
       <Tiles>
@@ -659,24 +502,15 @@ function OfferApp({ extensionInput }) {
             </Text>
           </TextBlock>
         </TextContainer>
-        {savingsAmount !== null && savingsAmount > 0 ? (
-          <TextContainer alignment="trailing">
-            <TextBlock emphasized>
-              SAVE {formatCurrency(savingsAmount, currencyCode)}
-            </TextBlock>
-            {content.showSavingsLabel && content.savingsLabel ? (
-              <TextBlock subdued>{content.savingsLabel}</TextBlock>
-            ) : null}
-          </TextContainer>
-        ) : null}
+        <TextContainer alignment="trailing">
+          <TextBlock emphasized>{candidate.discountTitle}</TextBlock>
+          <TextBlock subdued>SAVINGS</TextBlock>
+        </TextContainer>
       </Tiles>
-
-      {renderOfferDescription("after_price")}
-      {renderCustomContentSections("after_price", true)}
 
       {purchasedLineProperties.length > 0 ? (
         <BlockStack spacing="tight">
-          <TextBlock emphasized>Same as your order</TextBlock>
+          <TextBlock emphasized>Original item details</TextBlock>
           {purchasedLineProperties.map((property) => (
             <Tiles key={`${property.key}:${property.value}`}>
               <TextBlock subdued>{property.key}</TextBlock>
@@ -685,20 +519,12 @@ function OfferApp({ extensionInput }) {
               </TextContainer>
             </Tiles>
           ))}
+          <TextBlock subdued>
+            These details are from your original purchase and are not
+            automatically applied to the additional item.
+          </TextBlock>
         </BlockStack>
       ) : null}
-
-      {renderOfferDescription("before_quantity")}
-      {renderCustomContentSections("before_quantity", true)}
-
-      <Tiles>
-        <TextBlock subdued>Quantity</TextBlock>
-        <TextContainer alignment="trailing">
-          <TextBlock>
-            {quantity} additional {quantity === 1 ? "item" : "items"}
-          </TextBlock>
-        </TextContainer>
-      </Tiles>
 
       {content.showVariantSelector && offer.candidates.length > 1 ? (
         <Select
@@ -724,165 +550,109 @@ function OfferApp({ extensionInput }) {
         />
       ) : null}
 
-      {renderOfferDescription("after_quantity")}
-      {renderCustomContentSections("after_quantity", true)}
-
       {renderPurchaseControls()}
     </BlockStack>
   );
 
   return (
-    <BlockStack spacing={content.contentSpacing}>
-      {content.showHeadline ||
-      (content.descriptionPlacement === "top_banner" && content.description) ? (
-        <Layout media={centeredSectionMedia}>
-          <CalloutBanner
-            title={content.showHeadline ? content.headline : undefined}
-            background={content.bannerBackground}
-            alignment="center"
-          >
-            {content.descriptionPlacement === "top_banner"
-              ? content.description
-              : null}
-          </CalloutBanner>
-        </Layout>
-      ) : null}
-
-      {renderCustomContentSections("before_offer")}
+    <BlockStack spacing="loose">
+      <Layout media={centeredSectionMedia}>
+        <CalloutBanner
+          title={content.headline}
+          background={content.bannerBackground}
+          alignment="center"
+        >
+          {content.description}
+        </CalloutBanner>
+      </Layout>
 
       {content.imagePosition === "above" ? (
         <Layout media={centeredSectionMedia}>
           <BlockStack spacing="loose" alignment="center">
-            {productGallery}
+            {productImage}
             {offerDetails}
           </BlockStack>
         </Layout>
       ) : (
         <Layout media={layoutMedia}>
-          <View>{productGallery}</View>
+          <View>{productImage}</View>
           <View />
           {offerDetails}
         </Layout>
       )}
 
-      {renderCustomContentSections("after_offer")}
-
-      {content.showBenefitsSection &&
-      benefitHeading &&
+      {content.customMessage &&
       content.showProductImage &&
-      supportingImageUrl ? (
+      primarySupportingImageUrl ? (
         <Layout media={benefitLayoutMedia}>
           <View>
-            <Image
-              source={supportingImageUrl}
-              description={`${candidate.productTitle} lifestyle view`}
-              loading="lazy"
-              aspectRatio={1.45}
-              fit={content.benefitsImageFit}
-            />
-          </View>
-          <View />
-          <View>
             <CalloutBanner
-              title={benefitHeading}
+              title={content.customMessage}
               background="transparent"
               alignment="leading"
               border="none"
               spacing="loose"
             >
-              <BlockStack spacing="tight">
-                <TextBlock>{content.description}</TextBlock>
-                {benefitItems.map((item) => (
-                  <TextBlock key={item}>• {item}</TextBlock>
-                ))}
-              </BlockStack>
+              {content.description}
             </CalloutBanner>
           </View>
+          <View />
+          <View>
+            <Image
+              source={primarySupportingImageUrl}
+              description={`${candidate.productTitle} lifestyle view`}
+              loading="lazy"
+              fit="contain"
+            />
+          </View>
         </Layout>
-      ) : content.showBenefitsSection && benefitHeading ? (
+      ) : content.customMessage || primarySupportingImageUrl ? (
         <Layout media={centeredSectionMedia}>
           <BlockStack spacing="loose" alignment="center">
-            <CalloutBanner
-              title={benefitHeading}
-              background="transparent"
-              alignment="center"
-              border="none"
-              spacing="loose"
-            >
-              <BlockStack spacing="tight">
-                <TextBlock>{content.description}</TextBlock>
-                {benefitItems.map((item) => (
-                  <TextBlock key={item}>• {item}</TextBlock>
-                ))}
-              </BlockStack>
-            </CalloutBanner>
+            {content.customMessage ? (
+              <CalloutBanner
+                title={content.customMessage}
+                background="transparent"
+                alignment="center"
+                border="none"
+                spacing="loose"
+              >
+                {content.description}
+              </CalloutBanner>
+            ) : null}
+            {content.showProductImage && primarySupportingImageUrl ? (
+              <Image
+                source={primarySupportingImageUrl}
+                description={`${candidate.productTitle} lifestyle view`}
+                loading="lazy"
+                fit="contain"
+              />
+            ) : null}
           </BlockStack>
         </Layout>
       ) : null}
 
-      {renderCustomContentSections("between_sections")}
+      {content.showProductImage
+        ? remainingSupportingImageUrls.map((imageUrl, index) => (
+            <Layout key={imageUrl} media={centeredSectionMedia}>
+              <Image
+                source={imageUrl}
+                description={`${candidate.productTitle} detail view ${index + 1}`}
+                loading="lazy"
+                fit="contain"
+              />
+            </Layout>
+          ))
+        : null}
 
-      {content.showComparisonSection &&
-      offer.maxQuantity > 1 &&
-      bundleOfferTotal !== null ? (
-        <Layout media={centeredSectionMedia}>
-          <CalloutBanner
-            title={`${offer.maxQuantity} MORE FOR ${formatCurrency(
-              bundleOfferTotal,
-              currencyCode,
-            )}`}
-            background="transparent"
-            alignment="center"
-          >
-            <BlockStack spacing="loose">
-              <Tiles>
-                <TextContainer alignment="center">
-                  <TextBlock emphasized>1 item</TextBlock>
-                  <TextBlock subdued>Regular price</TextBlock>
-                  <TextBlock emphasized>
-                    {formatCurrency(candidate.originalPrice, currencyCode)}
-                  </TextBlock>
-                </TextContainer>
-                <TextContainer alignment="center">
-                  <TextBlock emphasized>{offer.maxQuantity} items</TextBlock>
-                  <TextBlock subdued>Regular price</TextBlock>
-                  <TextBlock>
-                    <Text role="deletion" subdued>
-                      {formatCurrency(bundleRegularTotal, currencyCode)}
-                    </Text>
-                  </TextBlock>
-                </TextContainer>
-                <TextContainer alignment="center">
-                  <TextBlock emphasized>Your offer</TextBlock>
-                  <TextBlock appearance="success">
-                    {formatCurrency(bundleOfferTotal, currencyCode)}
-                  </TextBlock>
-                  {bundleSavings !== null && bundleSavings > 0 ? (
-                    <TextBlock emphasized>
-                      SAVE {formatCurrency(bundleSavings, currencyCode)}
-                    </TextBlock>
-                  ) : null}
-                </TextContainer>
-              </Tiles>
-              <TextBlock subdued>
-                Select {offer.maxQuantity} above to claim the full bundle.
-              </TextBlock>
-            </BlockStack>
-          </CalloutBanner>
-        </Layout>
-      ) : null}
-
-      {content.showFooterNote ? (
-        <Layout media={centeredSectionMedia}>
-          <TextContainer alignment="center">
-            <Separator />
-            <TextBlock subdued>
-              This offer is available only on this page and cannot be added
-              later.
-            </TextBlock>
-          </TextContainer>
-        </Layout>
-      ) : null}
+      <Layout media={centeredSectionMedia}>
+        <CalloutBanner
+          title={`Add ${candidate.productTitle} to your order`}
+          background={content.bannerBackground}
+          alignment="center"
+        />
+      </Layout>
+      <Layout media={closingControlsMedia}>{renderPurchaseControls()}</Layout>
     </BlockStack>
   );
 }
@@ -919,25 +689,14 @@ async function trackAnalytics({
   }
 }
 
-function MoneyLine({
-  label,
-  amount,
-  currencyCode,
-  emphasized = false,
-  showFree = false,
-}) {
+function MoneyLine({ label, amount, currencyCode, emphasized = false }) {
   if (amount === undefined || amount === null) return null;
   return (
     <Tiles>
       <TextBlock emphasized={emphasized}>{label}</TextBlock>
       <TextContainer alignment="trailing">
-        <TextBlock
-          emphasized={emphasized}
-          appearance={showFree && Number(amount) === 0 ? "success" : undefined}
-        >
-          {showFree && Number(amount) === 0
-            ? "FREE"
-            : formatCurrency(amount, currencyCode)}
+        <TextBlock emphasized={emphasized}>
+          {formatCurrency(amount, currencyCode)}
         </TextBlock>
       </TextContainer>
     </Tiles>

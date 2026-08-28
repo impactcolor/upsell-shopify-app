@@ -64,7 +64,19 @@ type OfferCandidate = {
     valueType: "percentage" | "fixed_amount";
     title: string;
   };
+  bundleChanges: OfferChange[] | null;
   selectionToken: string;
+};
+
+type OfferChange = {
+  type: "add_variant";
+  variantId: number;
+  quantity: number;
+  discount: {
+    value: number;
+    valueType: "percentage" | "fixed_amount";
+    title: string;
+  };
 };
 
 export type PurchasedLineProperty = {
@@ -354,7 +366,24 @@ export const signPostPurchaseChangeset = ({
   }
 
   const change = selection.change;
+  const bundleChanges = selection.bundleChanges;
   if (!isTrustedChange(change)) throw new Error("Invalid offer change");
+  if (
+    selection.exactQuantity &&
+    (!Array.isArray(bundleChanges) ||
+      bundleChanges.length === 0 ||
+      !bundleChanges.every(isTrustedChange) ||
+      bundleChanges.reduce(
+        (total: number, item: OfferChange) => total + item.quantity,
+        0,
+      ) !== selection.maxQuantity)
+  ) {
+    throw new Error("Invalid bundle changes");
+  }
+
+  const changes = selection.exactQuantity
+    ? bundleChanges
+    : [{ ...change, quantity }];
 
   return jwt.sign(
     {
@@ -362,7 +391,7 @@ export const signPostPurchaseChangeset = ({
       jti: randomUUID(),
       iat: Date.now(),
       sub: referenceId,
-      changes: [{ ...change, quantity }],
+      changes,
     },
     secret,
     { algorithm: "HS256" },
@@ -393,9 +422,22 @@ const createCandidate = ({
   });
   if (!discount) return null;
 
+  const variantId = Number(normalizeShopifyId(variant.id));
+  const bundleChanges =
+    offer.discountType === "BUNDLE_PRICE"
+      ? createBundleChanges({
+          variantId,
+          price,
+          bundleTotal: configuredValue,
+          quantity: offer.maxQuantity,
+          currencyCode: offer.offerCurrencyCode,
+        })
+      : null;
+  if (offer.discountType === "BUNDLE_PRICE" && !bundleChanges) return null;
+
   const change = {
     type: "add_variant" as const,
-    variantId: Number(normalizeShopifyId(variant.id)),
+    variantId,
     quantity: 1,
     discount,
   };
@@ -407,6 +449,7 @@ const createCandidate = ({
       maxQuantity: offer.maxQuantity,
       exactQuantity: offer.discountType === "BUNDLE_PRICE",
       change,
+      bundleChanges,
     },
     requiredEnv("SHOPIFY_API_SECRET"),
     {
@@ -436,8 +479,61 @@ const createCandidate = ({
     currencyCode: offer.offerCurrencyCode,
     discountTitle: discount.title,
     discount,
+    bundleChanges,
     selectionToken,
   };
+};
+
+export const createBundleChanges = ({
+  variantId,
+  price,
+  bundleTotal,
+  quantity,
+  currencyCode,
+}: {
+  variantId: number;
+  price: number;
+  bundleTotal: number;
+  quantity: number;
+  currencyCode: string;
+}): OfferChange[] | null => {
+  if (
+    !Number.isInteger(variantId) ||
+    !Number.isFinite(price) ||
+    !Number.isFinite(bundleTotal) ||
+    !Number.isInteger(quantity) ||
+    price <= 0 ||
+    bundleTotal <= 0 ||
+    quantity < 2
+  ) {
+    return null;
+  }
+
+  const priceCents = Math.round(price * 100);
+  const totalCents = Math.round(bundleTotal * 100);
+  if (totalCents >= priceCents * quantity) return null;
+
+  const lowerUnitCents = Math.floor(totalCents / quantity);
+  const higherUnitCount = totalCents % quantity;
+  const lowerUnitCount = quantity - higherUnitCount;
+  const groups = [
+    { unitCents: lowerUnitCents + 1, quantity: higherUnitCount },
+    { unitCents: lowerUnitCents, quantity: lowerUnitCount },
+  ].filter((group) => group.quantity > 0);
+
+  return groups.map((group) => {
+    const unitPrice = group.unitCents / 100;
+    return {
+      type: "add_variant",
+      variantId,
+      quantity: group.quantity,
+      discount: {
+        value: ((priceCents - group.unitCents) / priceCents) * 100,
+        valueType: "percentage",
+        title: `${formatMoney(unitPrice, currencyCode)} each`,
+      },
+    };
+  });
 };
 
 export const calculateOfferDiscount = ({
@@ -735,6 +831,8 @@ const isTrustedChange = (
   return (
     change.type === "add_variant" &&
     Number.isInteger(change.variantId) &&
+    Number.isInteger(change.quantity) &&
+    Number(change.quantity) > 0 &&
     Boolean(discount) &&
     typeof discount?.value === "number" &&
     (discount.valueType === "percentage" ||

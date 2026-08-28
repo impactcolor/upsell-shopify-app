@@ -14,6 +14,7 @@ const selection = ({
   referenceId = "purchase-reference",
   maxQuantity = 2,
   exactQuantity = false,
+  bundleChanges,
   change = {
     type: "add_variant",
     variantId: 123,
@@ -29,10 +30,18 @@ const selection = ({
   referenceId?: string;
   maxQuantity?: number;
   exactQuantity?: boolean;
+  bundleChanges?: unknown;
   change?: unknown;
 } = {}) =>
   jwt.sign(
-    { shop, referenceId, maxQuantity, exactQuantity, change },
+    {
+      shop,
+      referenceId,
+      maxQuantity,
+      exactQuantity,
+      bundleChanges,
+      change,
+    },
     process.env.SHOPIFY_API_SECRET!,
     {
       algorithm: "HS256",
@@ -84,6 +93,46 @@ assert.throws(() =>
     selectionToken: selection({ maxQuantity: 3, exactQuantity: true }),
     quantity: 2,
   }),
+);
+const exactBundleChanges = [
+  {
+    type: "add_variant",
+    variantId: 123,
+    quantity: 2,
+    discount: {
+      value: 42.84,
+      valueType: "percentage",
+      title: "$20.00 each",
+    },
+  },
+  {
+    type: "add_variant",
+    variantId: 123,
+    quantity: 1,
+    discount: {
+      value: 42.87,
+      valueType: "percentage",
+      title: "$19.99 each",
+    },
+  },
+];
+const bundleChangeset = signPostPurchaseChangeset({
+  shop: "quality-test.myshopify.com",
+  referenceId: "purchase-reference",
+  selectionToken: selection({
+    maxQuantity: 3,
+    exactQuantity: true,
+    bundleChanges: exactBundleChanges,
+  }),
+  quantity: 3,
+});
+const verifiedBundle = jwt.verify(
+  bundleChangeset,
+  process.env.SHOPIFY_API_SECRET!,
+) as { changes: Array<{ quantity: number }> };
+assert.deepEqual(
+  verifiedBundle.changes.map((change) => change.quantity),
+  [2, 1],
 );
 assert.throws(() =>
   signPostPurchaseChangeset({

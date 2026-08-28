@@ -356,15 +356,18 @@ function OfferApp({ extensionInput, offer }) {
     });
   }, [candidate, inputData]);
   const changes = useMemo(
-    () => [
-      {
-        type: "add_variant",
-        variantId: Number(candidate.id.split("/").pop()),
-        quantity,
-        discount: candidate.discount,
-      },
-    ],
-    [candidate, quantity],
+    () =>
+      bundleOffer && candidate.bundleChanges?.length
+        ? candidate.bundleChanges
+        : [
+            {
+              type: "add_variant",
+              variantId: Number(candidate.id.split("/").pop()),
+              quantity,
+              discount: candidate.discount,
+            },
+          ],
+    [bundleOffer, candidate, quantity],
   );
 
   useEffect(() => {
@@ -474,12 +477,23 @@ function OfferApp({ extensionInput, offer }) {
     await done();
   };
 
-  const addedLine = calculatedPurchase?.updatedLineItems?.find(
-    (line) => String(line.variantId) === String(candidate.id.split("/").pop()),
-  );
-  const discountedTotal = addedLine?.totalPriceSet?.presentmentMoney?.amount;
+  const addedLines =
+    calculatedPurchase?.updatedLineItems?.filter(
+      (line) =>
+        String(line.variantId) === String(candidate.id.split("/").pop()),
+    ) ?? [];
+  const discountedTotal =
+    addedLines.length > 0
+      ? String(
+          addedLines.reduce(
+            (sum, line) =>
+              sum + Number(line.totalPriceSet?.presentmentMoney?.amount || 0),
+            0,
+          ),
+        )
+      : undefined;
   const currencyCode =
-    addedLine?.totalPriceSet?.presentmentMoney?.currencyCode ||
+    addedLines[0]?.totalPriceSet?.presentmentMoney?.currencyCode ||
     candidate.currencyCode;
   const shipping =
     calculatedPurchase?.addedShippingLines?.[0]?.priceSet?.presentmentMoney

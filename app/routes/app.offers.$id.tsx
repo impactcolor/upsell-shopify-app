@@ -978,7 +978,11 @@ export default function OfferDetailsPage() {
                 >
                   <s-stack direction="block" gap="base">
                     <s-stack direction="inline" gap="small" alignItems="center">
-                      <s-text type="strong">Section {index + 1}</s-text>
+                      <s-text type="strong">
+                        {section.placement === "HEADER_IMAGE"
+                          ? "Header image"
+                          : `Section ${index + 1}`}
+                      </s-text>
                       <s-button
                         type="button"
                         variant="tertiary"
@@ -1034,6 +1038,9 @@ export default function OfferDetailsPage() {
                           })
                         }
                       >
+                        <s-option value="HEADER_IMAGE">
+                          Header image (top of offer)
+                        </s-option>
                         <s-option value="BEFORE_OFFER">Before offer</s-option>
                         <s-option value="AFTER_PRICE">
                           After price and savings

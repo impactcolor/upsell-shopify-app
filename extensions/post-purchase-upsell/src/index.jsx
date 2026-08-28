@@ -677,7 +677,7 @@ function OfferApp({ extensionInput, offer }) {
                 source={fallbackImageUrl}
                 sources={sources}
                 description={section.altText || "Offer information"}
-                loading="lazy"
+                loading={placement === "header_image" ? undefined : "lazy"}
                 fit={section.imageFit === "cover" ? "cover" : "contain"}
               />
             ) : null}
@@ -868,6 +868,8 @@ function OfferApp({ extensionInput, offer }) {
 
   return (
     <BlockStack spacing={content.contentSpacing}>
+      {renderCustomContentSections("header_image")}
+
       {content.showHeadline ||
       (content.descriptionPlacement === "top_banner" && content.description) ? (
         <Layout media={centeredSectionMedia}>

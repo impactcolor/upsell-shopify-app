@@ -134,7 +134,7 @@ customSectionsForm.set(
   "https://cdn.shopify.com/mobile.png",
 );
 customSectionsForm.set("customSection_0_altText", "Offer comparison");
-customSectionsForm.set("customSection_0_placement", "BEFORE_PAY_BUTTON");
+customSectionsForm.set("customSection_0_placement", "HEADER_IMAGE");
 customSectionsForm.set("customSection_0_imageFit", "COVER");
 customSectionsForm.set("customSection_0_spacing", "COMPACT");
 customSectionsForm.set("customSection_0_enabled", "true");
@@ -150,7 +150,7 @@ assert.deepEqual(parseCustomContentSections(customSectionsForm), [
     altText: "Offer comparison",
     heading: null,
     body: null,
-    placement: "BEFORE_PAY_BUTTON",
+    placement: "HEADER_IMAGE",
     imageFit: "COVER",
     spacing: "COMPACT",
     enabled: true,

@@ -130,6 +130,7 @@ export type PostPurchaseOfferPayload = {
         heading: string | null;
         body: string | null;
         placement:
+          | "header_image"
           | "before_offer"
           | "after_price"
           | "before_quantity"
@@ -301,19 +302,21 @@ export const getEligiblePostPurchaseOffer = async ({
                 heading: section.heading,
                 body: section.body,
                 placement:
-                  section.placement === "BEFORE_OFFER"
-                    ? "before_offer"
-                    : section.placement === "AFTER_PRICE"
-                      ? "after_price"
-                      : section.placement === "BEFORE_QUANTITY"
-                        ? "before_quantity"
-                        : section.placement === "AFTER_QUANTITY"
-                          ? "after_quantity"
-                          : section.placement === "BEFORE_PAY_BUTTON"
-                            ? "before_pay_button"
-                            : section.placement === "AFTER_OFFER"
-                              ? "after_offer"
-                              : "between_sections",
+                  section.placement === "HEADER_IMAGE"
+                    ? "header_image"
+                    : section.placement === "BEFORE_OFFER"
+                      ? "before_offer"
+                      : section.placement === "AFTER_PRICE"
+                        ? "after_price"
+                        : section.placement === "BEFORE_QUANTITY"
+                          ? "before_quantity"
+                          : section.placement === "AFTER_QUANTITY"
+                            ? "after_quantity"
+                            : section.placement === "BEFORE_PAY_BUTTON"
+                              ? "before_pay_button"
+                              : section.placement === "AFTER_OFFER"
+                                ? "after_offer"
+                                : "between_sections",
                 imageFit: section.imageFit === "COVER" ? "cover" : "contain",
                 spacing:
                   section.spacing === "COMPACT"

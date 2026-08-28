@@ -38,6 +38,7 @@ const limitedString = (value: string, label: string, maxLength: number) => {
 };
 
 const CUSTOM_CONTENT_PLACEMENTS = new Set([
+  "HEADER_IMAGE",
   "BEFORE_OFFER",
   "AFTER_PRICE",
   "BEFORE_QUANTITY",

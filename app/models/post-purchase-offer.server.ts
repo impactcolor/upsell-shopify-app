@@ -77,6 +77,7 @@ export type PostPurchaseOfferPayload = {
     id: string;
     title: string;
     maxQuantity: number;
+    bundleTotalPrice: string | null;
     purchasedLineProperties: PurchasedLineProperty[];
     content: {
       headline: string;
@@ -219,6 +220,10 @@ export const getEligiblePostPurchaseOffer = async ({
           id: offer.id,
           title: offer.name,
           maxQuantity: offer.maxQuantity,
+          bundleTotalPrice:
+            offer.discountType === "BUNDLE_PRICE"
+              ? String(offer.discountValue)
+              : null,
           purchasedLineProperties:
             propertiesByVariantId.get(
               normalizeShopifyId(eligibility.line.variantId),
@@ -344,6 +349,9 @@ export const signPostPurchaseChangeset = ({
   ) {
     throw new Error("Requested quantity is not allowed");
   }
+  if (selection.exactQuantity && quantity !== selection.maxQuantity) {
+    throw new Error("This bundle must be purchased at its exact quantity");
+  }
 
   const change = selection.change;
   if (!isTrustedChange(change)) throw new Error("Invalid offer change");
@@ -381,6 +389,7 @@ const createCandidate = ({
     configuredValue,
     price,
     currencyCode: offer.offerCurrencyCode,
+    quantity: offer.maxQuantity,
   });
   if (!discount) return null;
 
@@ -396,6 +405,7 @@ const createCandidate = ({
       referenceId,
       offerId: offer.id,
       maxQuantity: offer.maxQuantity,
+      exactQuantity: offer.discountType === "BUNDLE_PRICE",
       change,
     },
     requiredEnv("SHOPIFY_API_SECRET"),
@@ -435,39 +445,50 @@ export const calculateOfferDiscount = ({
   configuredValue,
   price,
   currencyCode,
+  quantity = 1,
 }: {
   discountType: DiscountType;
   configuredValue: number;
   price: number;
   currencyCode: string;
+  quantity?: number;
 }) => {
   if (
     !Number.isFinite(configuredValue) ||
     !Number.isFinite(price) ||
+    !Number.isInteger(quantity) ||
+    quantity < 1 ||
     configuredValue <= 0 ||
     price <= 0
   ) {
     return null;
   }
 
+  const regularTotal = price * quantity;
   const discount =
-    discountType === "PERCENTAGE"
+    discountType === "BUNDLE_PRICE"
       ? {
-          value: configuredValue,
+          value: ((regularTotal - configuredValue) / regularTotal) * 100,
           valueType: "percentage" as const,
-          title: `${configuredValue}% off`,
+          title: `${quantity} for ${formatMoney(configuredValue, currencyCode)}`,
         }
-      : {
-          value:
-            discountType === "FIXED_PRICE"
-              ? roundMoney(price - configuredValue)
-              : configuredValue,
-          valueType: "fixed_amount" as const,
-          title:
-            discountType === "FIXED_PRICE"
-              ? `Now ${formatMoney(configuredValue, currencyCode)}`
-              : `${formatMoney(configuredValue, currencyCode)} off`,
-        };
+      : discountType === "PERCENTAGE"
+        ? {
+            value: configuredValue,
+            valueType: "percentage" as const,
+            title: `${configuredValue}% off`,
+          }
+        : {
+            value:
+              discountType === "FIXED_PRICE"
+                ? roundMoney(price - configuredValue)
+                : configuredValue,
+            valueType: "fixed_amount" as const,
+            title:
+              discountType === "FIXED_PRICE"
+                ? `Now ${formatMoney(configuredValue, currencyCode)}`
+                : `${formatMoney(configuredValue, currencyCode)} off`,
+          };
 
   if (
     discount.value <= 0 ||

@@ -4,9 +4,8 @@ process.env.SHOPIFY_API_KEY = "test-api-key";
 process.env.SHOPIFY_API_SECRET = "test-api-secret";
 process.env.SHOPIFY_APP_URL = "https://example.test";
 
-const { calculateOfferDiscount } = await import(
-  "../app/models/post-purchase-offer.server.js"
-);
+const { calculateOfferDiscount } =
+  await import("../app/models/post-purchase-offer.server.js");
 
 assert.deepEqual(
   calculateOfferDiscount({
@@ -35,6 +34,16 @@ assert.deepEqual(
   }),
   { value: 5, valueType: "fixed_amount", title: "Now $15.00" },
 );
+const bundleDiscount = calculateOfferDiscount({
+  discountType: "BUNDLE_PRICE",
+  configuredValue: 59.99,
+  price: 34.99,
+  currencyCode: "USD",
+  quantity: 3,
+});
+assert.equal(bundleDiscount?.valueType, "percentage");
+assert.equal(bundleDiscount?.title, "3 for $59.99");
+assert.ok(Math.abs((bundleDiscount?.value ?? 0) - 42.85033819186434) < 1e-10);
 
 for (const invalid of [
   { discountType: "PERCENTAGE" as const, configuredValue: 101, price: 20 },
@@ -42,6 +51,12 @@ for (const invalid of [
   { discountType: "FIXED_PRICE" as const, configuredValue: 20, price: 20 },
   { discountType: "FIXED_PRICE" as const, configuredValue: 25, price: 20 },
   { discountType: "PERCENTAGE" as const, configuredValue: 0, price: 20 },
+  {
+    discountType: "BUNDLE_PRICE" as const,
+    configuredValue: 60,
+    price: 20,
+    quantity: 3,
+  },
 ]) {
   assert.equal(
     calculateOfferDiscount({ ...invalid, currencyCode: "USD" }),

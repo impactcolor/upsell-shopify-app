@@ -26,7 +26,13 @@ import {
 // server environment is unavailable. During local development this must be the
 // HTTPS tunnel printed by `shopify app dev`; production uses the hosted origin.
 const APP_URL = "https://upsell-shopify-app.onrender.com";
-const DIAGNOSTIC_SHOP = "citylocsdev.myshopify.com";
+// Temporary isolation page is retained for future troubleshooting. Keep this
+// disabled during normal offer rendering.
+const STATIC_DIAGNOSTIC_MODE = false;
+const DIAGNOSTIC_SHOPS = new Set([
+  "citylocsdev.myshopify.com",
+  "citylocs.myshopify.com",
+]);
 
 async function renderDiagnostic(storage, message) {
   try {
@@ -37,10 +43,45 @@ async function renderDiagnostic(storage, message) {
   return { render: true };
 }
 
+function offerRequestBody(inputData) {
+  return {
+    shop: inputData.shop.domain,
+    referenceId: inputData.initialPurchase.referenceId,
+    lineItems: inputData.initialPurchase.lineItems.map((line) => ({
+      productId: line.product.id,
+      variantId: line.product.variant.id,
+      productTitle: line.product.title,
+      variantTitle: line.product.variant.title,
+      quantity: line.quantity,
+    })),
+  };
+}
+
+async function loadOffer(inputData) {
+  const response = await fetch(`${APP_URL}/api/post-purchase-offer`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${inputData.token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(offerRequestBody(inputData)),
+  });
+
+  if (!response.ok) {
+    throw new Error(`The offer service returned HTTP ${response.status}.`);
+  }
+
+  return response.json();
+}
+
 extend(
   "Checkout::PostPurchase::ShouldRender",
   async ({ inputData, storage }) => {
-    const diagnosticShop = inputData.shop.domain === DIAGNOSTIC_SHOP;
+    if (STATIC_DIAGNOSTIC_MODE) {
+      return { render: true };
+    }
+
+    const diagnosticShop = DIAGNOSTIC_SHOPS.has(inputData.shop.domain);
 
     if (!APP_URL) {
       console.error("SHOPIFY_APP_URL is required for post-purchase offers.");
@@ -54,35 +95,7 @@ extend(
     }
 
     try {
-      const response = await fetch(`${APP_URL}/api/post-purchase-offer`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${inputData.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          shop: inputData.shop.domain,
-          referenceId: inputData.initialPurchase.referenceId,
-          lineItems: inputData.initialPurchase.lineItems.map((line) => ({
-            productId: line.product.id,
-            variantId: line.product.variant.id,
-            productTitle: line.product.title,
-            variantTitle: line.product.variant.title,
-            quantity: line.quantity,
-          })),
-        }),
-      });
-
-      if (!response.ok) {
-        if (diagnosticShop) {
-          return renderDiagnostic(
-            storage,
-            `The post-purchase extension ran, but the offer service returned HTTP ${response.status}.`,
-          );
-        }
-        return { render: false };
-      }
-      const payload = await response.json();
+      const payload = await loadOffer(inputData);
       if (!payload.offer?.candidates?.length) {
         if (diagnosticShop) {
           return renderDiagnostic(
@@ -113,21 +126,129 @@ render("Checkout::PostPurchase::Render", () => <App />);
 
 export function App() {
   const extensionInput = useExtensionInput();
-  const initialData = extensionInput.storage.initialData;
 
-  if (!initialData?.offer) {
+  if (STATIC_DIAGNOSTIC_MODE) {
+    return <StaticDiagnosticApp extensionInput={extensionInput} />;
+  }
+
+  return <OfferBootstrap extensionInput={extensionInput} />;
+}
+
+function OfferBootstrap({ extensionInput }) {
+  const storedData = extensionInput.storage.initialData;
+  const [offer, setOffer] = useState(storedData?.offer || null);
+  const [loadingOffer, setLoadingOffer] = useState(!storedData?.offer);
+  const [offerError, setOfferError] = useState(
+    storedData?.diagnostic?.message || "",
+  );
+
+  useEffect(() => {
+    if (offer || offerError) return undefined;
+
+    let active = true;
+
+    loadOffer(extensionInput.inputData)
+      .then((payload) => {
+        if (!active) return;
+
+        if (!payload.offer?.candidates?.length) {
+          setOfferError("No eligible offer was returned for this order.");
+          return;
+        }
+
+        setOffer(payload.offer);
+      })
+      .catch((caught) => {
+        if (!active) return;
+        setOfferError(
+          caught instanceof Error
+            ? caught.message
+            : "The offer service could not be reached.",
+        );
+      })
+      .finally(() => {
+        if (active) setLoadingOffer(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [extensionInput.inputData, offer, offerError]);
+
+  if (loadingOffer) {
+    return (
+      <BlockStack spacing="loose">
+        <Spinner />
+        <TextBlock>Loading your special offer…</TextBlock>
+      </BlockStack>
+    );
+  }
+
+  if (!offer) {
     return (
       <DiagnosticApp
         extensionInput={extensionInput}
         message={
-          initialData?.diagnostic?.message ||
+          offerError ||
           "The post-purchase extension opened, but no offer data was available."
         }
       />
     );
   }
 
-  return <OfferApp extensionInput={extensionInput} />;
+  return (
+    <OfferRenderBoundary extensionInput={extensionInput}>
+      <OfferApp extensionInput={extensionInput} offer={offer} />
+    </OfferRenderBoundary>
+  );
+}
+
+function StaticDiagnosticApp({ extensionInput }) {
+  return (
+    <BlockStack spacing="loose">
+      <Heading>Post-purchase test</Heading>
+      <TextBlock>UPSELL GOES HERE</TextBlock>
+      <TextBlock>The static post-purchase extension loaded.</TextBlock>
+      <Button submit onPress={() => extensionInput.done()}>
+        Continue to order confirmation
+      </Button>
+    </BlockStack>
+  );
+}
+
+class OfferRenderBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("The post-purchase offer layout failed to render.", {
+      error,
+      componentStack: info.componentStack,
+    });
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <DiagnosticApp
+          extensionInput={this.props.extensionInput}
+          message={`The offer was eligible, but its layout failed to render: ${
+            this.state.error instanceof Error
+              ? this.state.error.message
+              : String(this.state.error)
+          }`}
+        />
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 function DiagnosticApp({ extensionInput, message }) {
@@ -144,10 +265,9 @@ function DiagnosticApp({ extensionInput, message }) {
   );
 }
 
-function OfferApp({ extensionInput }) {
-  const { storage, inputData, calculateChangeset, applyChangeset, done } =
+function OfferApp({ extensionInput, offer }) {
+  const { inputData, calculateChangeset, applyChangeset, done } =
     extensionInput;
-  const { offer } = storage.initialData;
   const purchasedLineProperties = Array.isArray(offer.purchasedLineProperties)
     ? offer.purchasedLineProperties
     : [];
@@ -214,7 +334,8 @@ function OfferApp({ extensionInput }) {
       : [],
   };
   const [candidateId, setCandidateId] = useState(offer.candidates[0].id);
-  const [quantity, setQuantity] = useState(1);
+  const bundleOffer = typeof offer.bundleTotalPrice === "string";
+  const [quantity, setQuantity] = useState(bundleOffer ? offer.maxQuantity : 1);
   const [calculatedPurchase, setCalculatedPurchase] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -712,7 +833,7 @@ function OfferApp({ extensionInput }) {
         />
       ) : null}
 
-      {content.showQuantitySelector && offer.maxQuantity > 1 ? (
+      {content.showQuantitySelector && !bundleOffer && offer.maxQuantity > 1 ? (
         <Select
           label="Quantity"
           value={String(quantity)}
@@ -865,7 +986,9 @@ function OfferApp({ extensionInput }) {
                 </TextContainer>
               </Tiles>
               <TextBlock subdued>
-                Select {offer.maxQuantity} above to claim the full bundle.
+                {bundleOffer
+                  ? `This offer includes all ${offer.maxQuantity} items.`
+                  : `Select ${offer.maxQuantity} above to claim the full bundle.`}
               </TextBlock>
             </BlockStack>
           </CalloutBanner>

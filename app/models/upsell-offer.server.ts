@@ -133,7 +133,9 @@ export const parseOfferForm = (formData: FormData) => {
 
   const rawDiscountType = requiredString(formData, "discountType");
   const discountType: DiscountType =
-    rawDiscountType === "FIXED_AMOUNT" || rawDiscountType === "FIXED_PRICE"
+    rawDiscountType === "FIXED_AMOUNT" ||
+    rawDiscountType === "FIXED_PRICE" ||
+    rawDiscountType === "BUNDLE_PRICE"
       ? rawDiscountType
       : "PERCENTAGE";
   const rawStatus = optionalString(formData, "status") ?? "DRAFT";
@@ -261,6 +263,18 @@ export const parseOfferForm = (formData: FormData) => {
   }
   if (maxQuantity < 1 || maxQuantity > 100) {
     throw new Error("Max quantity must be between 1 and 100");
+  }
+  if (discountType === "BUNDLE_PRICE" && maxQuantity < 2) {
+    throw new Error("Bundle quantity must be at least 2");
+  }
+  if (
+    offerPrice !== null &&
+    discountType === "BUNDLE_PRICE" &&
+    discountValue >= offerPrice * maxQuantity
+  ) {
+    throw new Error(
+      "The bundle total must be less than the regular total for all bundle items",
+    );
   }
 
   const specificVariant = upsellAction === "SPECIFIC_VARIANT";

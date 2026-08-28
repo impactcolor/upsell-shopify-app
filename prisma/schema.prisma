@@ -37,6 +37,7 @@ enum DiscountType {
   PERCENTAGE
   FIXED_AMOUNT
   FIXED_PRICE
+  BUNDLE_PRICE
 }
 
 enum TriggerType {

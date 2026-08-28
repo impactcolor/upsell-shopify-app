@@ -43,6 +43,22 @@ assert.equal(defaults.savingsLabel, "");
 assert.equal(defaults.showSavingsLabel, true);
 assert.equal(defaults.showFooterNote, true);
 
+const bundleForm = baseForm();
+bundleForm.set("discountType", "BUNDLE_PRICE");
+bundleForm.set("discountValue", "59.99");
+bundleForm.set("maxQuantity", "3");
+const bundle = parseOfferForm(bundleForm);
+assert.equal(bundle.discountType, "BUNDLE_PRICE");
+assert.equal(bundle.discountValue, 59.99);
+assert.equal(bundle.maxQuantity, 3);
+
+const oneItemBundleForm = baseForm();
+oneItemBundleForm.set("discountType", "BUNDLE_PRICE");
+assert.throws(
+  () => parseOfferForm(oneItemBundleForm),
+  /Bundle quantity must be at least 2/,
+);
+
 const customForm = baseForm();
 customForm.set("contentSettingsPresent", "true");
 customForm.set(

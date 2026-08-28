@@ -6,14 +6,14 @@ process.env.SHOPIFY_API_KEY = "test-api-key";
 process.env.SHOPIFY_API_SECRET = "test-api-secret";
 process.env.SHOPIFY_APP_URL = "https://example.test";
 
-const { signPostPurchaseChangeset } = await import(
-  "../app/models/post-purchase-offer.server.js"
-);
+const { signPostPurchaseChangeset } =
+  await import("../app/models/post-purchase-offer.server.js");
 
 const selection = ({
   shop = "quality-test.myshopify.com",
   referenceId = "purchase-reference",
   maxQuantity = 2,
+  exactQuantity = false,
   change = {
     type: "add_variant",
     variantId: 123,
@@ -28,10 +28,11 @@ const selection = ({
   shop?: string;
   referenceId?: string;
   maxQuantity?: number;
+  exactQuantity?: boolean;
   change?: unknown;
 } = {}) =>
   jwt.sign(
-    { shop, referenceId, maxQuantity, change },
+    { shop, referenceId, maxQuantity, exactQuantity, change },
     process.env.SHOPIFY_API_SECRET!,
     {
       algorithm: "HS256",
@@ -74,6 +75,14 @@ assert.throws(() =>
     referenceId: "purchase-reference",
     selectionToken: selection(),
     quantity: 1,
+  }),
+);
+assert.throws(() =>
+  signPostPurchaseChangeset({
+    shop: "quality-test.myshopify.com",
+    referenceId: "purchase-reference",
+    selectionToken: selection({ maxQuantity: 3, exactQuantity: true }),
+    quantity: 2,
   }),
 );
 assert.throws(() =>

@@ -24,7 +24,8 @@ import { authenticate } from "../shopify.server";
 type TriggerType = "PRODUCT" | "COLLECTION";
 type UpsellAction =
   "MATCHING_VARIANT" | "MATCHING_PRODUCT_SELECT_VARIANT" | "SPECIFIC_VARIANT";
-type DiscountType = "PERCENTAGE" | "FIXED_AMOUNT" | "FIXED_PRICE";
+type DiscountType =
+  "PERCENTAGE" | "FIXED_AMOUNT" | "FIXED_PRICE" | "BUNDLE_PRICE";
 
 type SelectedTrigger = { id: string; title: string; imageUrl: string };
 type SelectedVariant = {
@@ -185,6 +186,7 @@ export default function OfferDetailsPage() {
     savedOffer.discountType,
   );
   const [discountValue, setDiscountValue] = useState(savedOffer.discountValue);
+  const [maxQuantity, setMaxQuantity] = useState(savedOffer.maxQuantity);
   const [imageOptions, setImageOptions] =
     useState<OfferImageOption[]>(savedImageOptions);
   const [offerImageUrl, setOfferImageUrl] = useState(
@@ -315,6 +317,7 @@ export default function OfferDetailsPage() {
     const discount = Number(discountValue);
     if (!Number.isFinite(price) || !Number.isFinite(discount)) return null;
     if (discountType === "FIXED_PRICE") return discount;
+    if (discountType === "BUNDLE_PRICE") return discount;
     return Math.max(
       0,
       discountType === "PERCENTAGE"
@@ -580,11 +583,18 @@ export default function OfferDetailsPage() {
               </s-select>
               <s-number-field
                 name="maxQuantity"
-                label="Max quantity"
-                min={1}
+                label={
+                  discountType === "BUNDLE_PRICE"
+                    ? "Bundle quantity"
+                    : "Max quantity"
+                }
+                min={discountType === "BUNDLE_PRICE" ? 2 : 1}
                 max={100}
                 step={1}
-                value={String(savedOffer.maxQuantity)}
+                value={String(maxQuantity)}
+                onInput={(event) =>
+                  setMaxQuantity(Number(event.currentTarget.value))
+                }
                 required
               />
             </s-grid>
@@ -599,6 +609,7 @@ export default function OfferDetailsPage() {
                 }
               >
                 <s-option value="FIXED_PRICE">Final item price</s-option>
+                <s-option value="BUNDLE_PRICE">Bundle total price</s-option>
                 <s-option value="PERCENTAGE">Percentage off</s-option>
                 <s-option value="FIXED_AMOUNT">Fixed amount off</s-option>
               </s-select>
@@ -606,8 +617,10 @@ export default function OfferDetailsPage() {
                 name="discountValue"
                 label={
                   discountType === "FIXED_PRICE"
-                    ? `Final price (${savedOffer.offerCurrencyCode})`
-                    : "Discount value"
+                    ? `Final item price (${savedOffer.offerCurrencyCode})`
+                    : discountType === "BUNDLE_PRICE"
+                      ? `Bundle total price (${savedOffer.offerCurrencyCode})`
+                      : "Discount value"
                 }
                 min={0.01}
                 max={discountType === "PERCENTAGE" ? 100 : undefined}
@@ -620,7 +633,11 @@ export default function OfferDetailsPage() {
 
             {previewPrice !== null && offer && (
               <s-banner heading="Customer price preview" tone="info">
-                {formatMoney(Number(offer.price), savedOffer.offerCurrencyCode)}{" "}
+                {formatMoney(
+                  Number(offer.price) *
+                    (discountType === "BUNDLE_PRICE" ? maxQuantity : 1),
+                  savedOffer.offerCurrencyCode,
+                )}{" "}
                 → {formatMoney(previewPrice, savedOffer.offerCurrencyCode)}
               </s-banner>
             )}
@@ -629,6 +646,13 @@ export default function OfferDetailsPage() {
               <s-banner heading="Price resolved after purchase" tone="info">
                 The post-purchase service will use the matching purchased
                 variant and calculate the Shopify changeset from its price.
+              </s-banner>
+            )}
+
+            {discountType === "BUNDLE_PRICE" && (
+              <s-banner heading="Bundle-total offer" tone="info">
+                The customer accepts the complete bundle quantity at this total
+                price. The quantity selector is hidden for this pricing mode.
               </s-banner>
             )}
           </s-stack>
@@ -1216,7 +1240,8 @@ export default function OfferDetailsPage() {
                     }
                   >
                     {formatMoney(
-                      Number(offer.price),
+                      Number(offer.price) *
+                        (discountType === "BUNDLE_PRICE" ? maxQuantity : 1),
                       savedOffer.offerCurrencyCode,
                     )}{" "}
                     → {formatMoney(previewPrice, savedOffer.offerCurrencyCode)}
@@ -1230,11 +1255,13 @@ export default function OfferDetailsPage() {
                     <s-option>{offer?.title || "Selected variant"}</s-option>
                   </s-select>
                 )}
-                {showQuantitySelector && savedOffer.maxQuantity > 1 && (
-                  <s-select label="Quantity" disabled>
-                    <s-option>1</s-option>
-                  </s-select>
-                )}
+                {showQuantitySelector &&
+                  discountType !== "BUNDLE_PRICE" &&
+                  maxQuantity > 1 && (
+                    <s-select label="Quantity" disabled>
+                      <s-option>1</s-option>
+                    </s-select>
+                  )}
                 <s-button variant="primary" disabled>
                   Pay now • calculated total
                 </s-button>

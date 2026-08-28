@@ -28,7 +28,8 @@ import { authenticate } from "../shopify.server";
 type TriggerType = "PRODUCT" | "COLLECTION";
 type UpsellAction =
   "MATCHING_VARIANT" | "MATCHING_PRODUCT_SELECT_VARIANT" | "SPECIFIC_VARIANT";
-type DiscountType = "PERCENTAGE" | "FIXED_AMOUNT" | "FIXED_PRICE";
+type DiscountType =
+  "PERCENTAGE" | "FIXED_AMOUNT" | "FIXED_PRICE" | "BUNDLE_PRICE";
 
 type SelectedTrigger = {
   id: string;
@@ -187,10 +188,7 @@ export default function OffersPage() {
 
     return () => {
       window.removeEventListener("focus", refreshActivationStatus);
-      document.removeEventListener(
-        "visibilitychange",
-        refreshActivationStatus,
-      );
+      document.removeEventListener("visibilitychange", refreshActivationStatus);
       window.clearInterval(refreshInterval);
     };
   }, [postPurchaseAppInUse, revalidator]);
@@ -264,8 +262,8 @@ export default function OffersPage() {
     <s-page heading="Upsell offers">
       {orderDetailsAccess ? (
         <s-banner heading="Line-item details are enabled" tone="success">
-          Buyer-visible custom properties from the qualifying purchased item
-          can appear on its post-purchase offer.
+          Buyer-visible custom properties from the qualifying purchased item can
+          appear on its post-purchase offer.
         </s-banner>
       ) : (
         <s-banner heading="Permission update required" tone="warning">
@@ -373,11 +371,7 @@ export default function OffersPage() {
             name="offerVariantTitle"
             value={specificVariant ? (offer?.title ?? "") : ""}
           />
-          <input
-            type="hidden"
-            name="offerImageUrl"
-            value={offerImageUrl}
-          />
+          <input type="hidden" name="offerImageUrl" value={offerImageUrl} />
           <input
             type="hidden"
             name="offerPrice"
@@ -507,6 +501,7 @@ export default function OffersPage() {
                 }
               >
                 <s-option value="FIXED_PRICE">Final item price</s-option>
+                <s-option value="BUNDLE_PRICE">Bundle total price</s-option>
                 <s-option value="PERCENTAGE">Percentage off</s-option>
                 <s-option value="FIXED_AMOUNT">Fixed amount off</s-option>
               </s-select>
@@ -514,19 +509,31 @@ export default function OffersPage() {
                 name="discountValue"
                 label={
                   discountType === "FIXED_PRICE"
-                    ? `Final price (${currencyCode})`
-                    : "Discount value"
+                    ? `Final item price (${currencyCode})`
+                    : discountType === "BUNDLE_PRICE"
+                      ? `Bundle total price (${currencyCode})`
+                      : "Discount value"
                 }
                 min={0.01}
                 max={discountType === "PERCENTAGE" ? 100 : undefined}
                 step={0.01}
-                value={discountType === "FIXED_PRICE" ? "15" : "10"}
+                value={
+                  discountType === "FIXED_PRICE"
+                    ? "15"
+                    : discountType === "BUNDLE_PRICE"
+                      ? "59.99"
+                      : "10"
+                }
                 required
               />
               <s-number-field
                 name="maxQuantity"
-                label="Max quantity"
-                min={1}
+                label={
+                  discountType === "BUNDLE_PRICE"
+                    ? "Bundle quantity"
+                    : "Max quantity"
+                }
+                min={discountType === "BUNDLE_PRICE" ? 2 : 1}
                 max={100}
                 step={1}
                 value="1"
@@ -538,6 +545,14 @@ export default function OffersPage() {
               <s-banner heading="Final-price offer" tone="info">
                 The post-purchase service will convert the final price into the
                 fixed discount amount required by Shopify.
+              </s-banner>
+            )}
+
+            {discountType === "BUNDLE_PRICE" && (
+              <s-banner heading="Bundle-total offer" tone="info">
+                The customer accepts the complete bundle quantity at the
+                configured total price. Individual quantities cannot be
+                selected.
               </s-banner>
             )}
 
@@ -608,7 +623,7 @@ export default function OffersPage() {
                       {item.triggerResourceTitle} → {upsellActionLabel(item)}
                     </s-text>
                     <s-text color="subdued">
-                      {pricingLabel(item)} · up to {item.maxQuantity}
+                      {pricingLabel(item)} · {quantityLabel(item)}
                     </s-text>
                   </s-stack>
                   <s-stack direction="inline" gap="small">
@@ -712,8 +727,16 @@ const pricingLabel = (offer: {
   if (offer.discountType === "FIXED_PRICE") {
     return `Final price ${formatMoney(Number(offer.discountValue), offer.offerCurrencyCode)}`;
   }
+  if (offer.discountType === "BUNDLE_PRICE") {
+    return `Bundle total ${formatMoney(Number(offer.discountValue), offer.offerCurrencyCode)}`;
+  }
   return `${formatMoney(Number(offer.discountValue), offer.offerCurrencyCode)} off`;
 };
+
+const quantityLabel = (offer: { discountType: string; maxQuantity: number }) =>
+  offer.discountType === "BUNDLE_PRICE"
+    ? `${offer.maxQuantity}-item bundle`
+    : `up to ${offer.maxQuantity}`;
 
 const formatMoney = (amount: number, currencyCode: string) =>
   new Intl.NumberFormat(undefined, {

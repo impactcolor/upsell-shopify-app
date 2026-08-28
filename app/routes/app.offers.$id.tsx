@@ -941,6 +941,48 @@ export default function OfferDetailsPage() {
 
             <s-divider />
             <s-stack direction="inline" gap="base" alignItems="center">
+              <s-heading>Header image</s-heading>
+              <s-button
+                type="button"
+                disabled={
+                  customContentSections.length >= 4 ||
+                  customContentSections.some(
+                    (section) => section.placement === "HEADER_IMAGE",
+                  )
+                }
+                onClick={() =>
+                  setCustomContentSections((sections) => [
+                    {
+                      ...newCustomContentSection(),
+                      placement: "HEADER_IMAGE",
+                    },
+                    ...sections,
+                  ])
+                }
+              >
+                Add header image
+              </s-button>
+            </s-stack>
+            <s-paragraph>
+              This is the first element inside the upsell offer area, above the
+              headline, product, pricing, and payment buttons. Shopify&apos;s
+              confirmation content remains above it.
+            </s-paragraph>
+            {customContentSections.some(
+              (section) => section.placement === "HEADER_IMAGE",
+            ) ? (
+              <s-banner heading="Header image added" tone="success">
+                Configure its desktop and mobile images in the Header image card
+                below.
+              </s-banner>
+            ) : (
+              <s-banner heading="No header image" tone="info">
+                Select Add header image to create the top image area.
+              </s-banner>
+            )}
+
+            <s-divider />
+            <s-stack direction="inline" gap="base" alignItems="center">
               <s-heading>Custom Content Sections</s-heading>
               <s-button
                 type="button"
@@ -956,9 +998,9 @@ export default function OfferDetailsPage() {
               </s-button>
             </s-stack>
             <s-paragraph>
-              Add up to four responsive image or text sections. Desktop and
-              mobile images are selected automatically for the buyer&apos;s
-              screen.
+              Add up to four total responsive sections, including the header
+              image. Desktop and mobile images are selected automatically for
+              the buyer&apos;s screen.
             </s-paragraph>
 
             {customContentSections.length === 0 ? (

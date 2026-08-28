@@ -14,6 +14,7 @@ export function OfferImagePicker({
   onChange,
   onUploadComplete,
   label = "Offer image",
+  removeHelpText = "Removing the override uses the purchased product image.",
 }: {
   imageOptions: OfferImageOption[];
   imageUrl: string;
@@ -22,6 +23,7 @@ export function OfferImagePicker({
   onChange: (imageUrl: string) => void;
   onUploadComplete?: (imageUrl: string) => void;
   label?: string;
+  removeHelpText?: string;
 }) {
   const uploadFetcher = useFetcher<ImageUploadResponse>();
   const shopify = useAppBridge();
@@ -137,9 +139,7 @@ export function OfferImagePicker({
               >
                 Remove image
               </s-button>
-              <s-text color="subdued">
-                Removing the override uses the purchased product image.
-              </s-text>
+              <s-text color="subdued">{removeHelpText}</s-text>
             </s-stack>
           </s-grid>
           <input

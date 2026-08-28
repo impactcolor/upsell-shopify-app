@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -266,6 +266,12 @@ export default function OfferDetailsPage() {
       enabled: section.enabled,
     })),
   );
+  const topBannerImageSection = customContentSections.find(
+    (section) => section.placement === "HEADER_IMAGE",
+  );
+  const customContentSectionCount = customContentSections.filter(
+    (section) => section.placement !== "HEADER_IMAGE",
+  ).length;
   const previewBenefitLines = customMessage
     .split("\n")
     .map((line) => line.trim())
@@ -300,10 +306,43 @@ export default function OfferDetailsPage() {
     );
   };
 
+  const updateTopBannerImage = (
+    updates: Partial<CustomContentSectionEditor>,
+  ) => {
+    setCustomContentSections((sections) => {
+      const index = sections.findIndex(
+        (section) => section.placement === "HEADER_IMAGE",
+      );
+      const current =
+        index >= 0
+          ? sections[index]
+          : {
+              ...newCustomContentSection(),
+              placement: "HEADER_IMAGE",
+            };
+      const updated = { ...current, ...updates, enabled: true };
+
+      if (!updated.desktopImageUrl && !updated.mobileImageUrl) {
+        return sections.filter(
+          (section) => section.placement !== "HEADER_IMAGE",
+        );
+      }
+
+      if (index < 0) return [updated, ...sections];
+      return sections.map((section, sectionIndex) =>
+        sectionIndex === index ? updated : section,
+      );
+    });
+  };
+
   const moveCustomContentSection = (index: number, direction: -1 | 1) => {
     setCustomContentSections((sections) => {
-      const destination = index + direction;
-      if (destination < 0 || destination >= sections.length) return sections;
+      const customSectionIndexes = sections.flatMap((section, sectionIndex) =>
+        section.placement === "HEADER_IMAGE" ? [] : [sectionIndex],
+      );
+      const position = customSectionIndexes.indexOf(index);
+      const destination = customSectionIndexes[position + direction];
+      if (destination === undefined) return sections;
       const next = [...sections];
       [next[index], next[destination]] = [next[destination], next[index]];
       return next;
@@ -668,6 +707,61 @@ export default function OfferDetailsPage() {
             </s-paragraph>
 
             <s-heading>Top offer banner</s-heading>
+            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+              <OfferImagePicker
+                label="Desktop banner image"
+                imageOptions={imageOptions}
+                imageUrl={topBannerImageSection?.desktopImageUrl ?? ""}
+                productTitle={offer?.productTitle ?? trigger?.title ?? "Offer"}
+                canUpload={fileWriteAccess}
+                removeHelpText="Removing this image hides the desktop image from the top offer banner."
+                onChange={(desktopImageUrl) =>
+                  updateTopBannerImage({ desktopImageUrl })
+                }
+              />
+              <OfferImagePicker
+                label="Mobile banner image"
+                imageOptions={imageOptions}
+                imageUrl={topBannerImageSection?.mobileImageUrl ?? ""}
+                productTitle={offer?.productTitle ?? trigger?.title ?? "Offer"}
+                canUpload={fileWriteAccess}
+                removeHelpText="Removing this image uses the desktop banner image on mobile."
+                onChange={(mobileImageUrl) =>
+                  updateTopBannerImage({ mobileImageUrl })
+                }
+              />
+            </s-grid>
+            {topBannerImageSection ? (
+              <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+                <s-text-field
+                  label="Banner image description"
+                  value={topBannerImageSection.altText}
+                  maxLength={200}
+                  onInput={(event) =>
+                    updateTopBannerImage({
+                      altText: event.currentTarget.value,
+                    })
+                  }
+                />
+                <s-select
+                  label="Banner image fit"
+                  value={topBannerImageSection.imageFit}
+                  onChange={(event) =>
+                    updateTopBannerImage({
+                      imageFit: event.currentTarget.value,
+                    })
+                  }
+                >
+                  <s-option value="CONTAIN">Show entire image</s-option>
+                  <s-option value="COVER">Crop to fill</s-option>
+                </s-select>
+              </s-grid>
+            ) : null}
+            <s-paragraph>
+              The appropriate desktop or mobile image appears first inside the
+              offer area, above the headline. Leave both images empty for a
+              text-only banner.
+            </s-paragraph>
             <s-checkbox
               name="showHeadline"
               value="true"
@@ -941,52 +1035,10 @@ export default function OfferDetailsPage() {
 
             <s-divider />
             <s-stack direction="inline" gap="base" alignItems="center">
-              <s-heading>Header image</s-heading>
-              <s-button
-                type="button"
-                disabled={
-                  customContentSections.length >= 4 ||
-                  customContentSections.some(
-                    (section) => section.placement === "HEADER_IMAGE",
-                  )
-                }
-                onClick={() =>
-                  setCustomContentSections((sections) => [
-                    {
-                      ...newCustomContentSection(),
-                      placement: "HEADER_IMAGE",
-                    },
-                    ...sections,
-                  ])
-                }
-              >
-                Add header image
-              </s-button>
-            </s-stack>
-            <s-paragraph>
-              This is the first element inside the upsell offer area, above the
-              headline, product, pricing, and payment buttons. Shopify&apos;s
-              confirmation content remains above it.
-            </s-paragraph>
-            {customContentSections.some(
-              (section) => section.placement === "HEADER_IMAGE",
-            ) ? (
-              <s-banner heading="Header image added" tone="success">
-                Configure its desktop and mobile images in the Header image card
-                below.
-              </s-banner>
-            ) : (
-              <s-banner heading="No header image" tone="info">
-                Select Add header image to create the top image area.
-              </s-banner>
-            )}
-
-            <s-divider />
-            <s-stack direction="inline" gap="base" alignItems="center">
               <s-heading>Custom Content Sections</s-heading>
               <s-button
                 type="button"
-                disabled={customContentSections.length >= 4}
+                disabled={customContentSectionCount >= 4}
                 onClick={() =>
                   setCustomContentSections((sections) => [
                     ...sections,
@@ -998,12 +1050,12 @@ export default function OfferDetailsPage() {
               </s-button>
             </s-stack>
             <s-paragraph>
-              Add up to four total responsive sections, including the header
-              image. Desktop and mobile images are selected automatically for
-              the buyer&apos;s screen.
+              Add up to four responsive image or text sections below the top
+              offer banner. Desktop and mobile images are selected automatically
+              for the buyer&apos;s screen.
             </s-paragraph>
 
-            {customContentSections.length === 0 ? (
+            {customContentSectionCount === 0 ? (
               <s-box padding="base" border="base" borderRadius="base">
                 <s-text color="subdued">No custom content sections yet.</s-text>
               </s-box>
@@ -1011,6 +1063,52 @@ export default function OfferDetailsPage() {
 
             {customContentSections.map((section, index) => {
               const prefix = `customSection_${index}_`;
+              if (section.placement === "HEADER_IMAGE") {
+                return (
+                  <Fragment key={section.id}>
+                    <input
+                      type="hidden"
+                      name={`${prefix}desktopImageUrl`}
+                      value={section.desktopImageUrl}
+                    />
+                    <input
+                      type="hidden"
+                      name={`${prefix}mobileImageUrl`}
+                      value={section.mobileImageUrl}
+                    />
+                    <input
+                      type="hidden"
+                      name={`${prefix}altText`}
+                      value={section.altText}
+                    />
+                    <input type="hidden" name={`${prefix}heading`} value="" />
+                    <input type="hidden" name={`${prefix}body`} value="" />
+                    <input
+                      type="hidden"
+                      name={`${prefix}placement`}
+                      value="HEADER_IMAGE"
+                    />
+                    <input
+                      type="hidden"
+                      name={`${prefix}imageFit`}
+                      value={section.imageFit}
+                    />
+                    <input
+                      type="hidden"
+                      name={`${prefix}spacing`}
+                      value={section.spacing}
+                    />
+                    <input
+                      type="hidden"
+                      name={`${prefix}enabled`}
+                      value="true"
+                    />
+                  </Fragment>
+                );
+              }
+              const customPosition = customContentSections
+                .filter((item) => item.placement !== "HEADER_IMAGE")
+                .findIndex((item) => item.id === section.id);
               return (
                 <s-box
                   key={section.id}
@@ -1021,14 +1119,12 @@ export default function OfferDetailsPage() {
                   <s-stack direction="block" gap="base">
                     <s-stack direction="inline" gap="small" alignItems="center">
                       <s-text type="strong">
-                        {section.placement === "HEADER_IMAGE"
-                          ? "Header image"
-                          : `Section ${index + 1}`}
+                        Section {customPosition + 1}
                       </s-text>
                       <s-button
                         type="button"
                         variant="tertiary"
-                        disabled={index === 0}
+                        disabled={customPosition === 0}
                         onClick={() => moveCustomContentSection(index, -1)}
                       >
                         Move up
@@ -1036,7 +1132,9 @@ export default function OfferDetailsPage() {
                       <s-button
                         type="button"
                         variant="tertiary"
-                        disabled={index === customContentSections.length - 1}
+                        disabled={
+                          customPosition === customContentSectionCount - 1
+                        }
                         onClick={() => moveCustomContentSection(index, 1)}
                       >
                         Move down
@@ -1080,9 +1178,6 @@ export default function OfferDetailsPage() {
                           })
                         }
                       >
-                        <s-option value="HEADER_IMAGE">
-                          Header image (top of offer)
-                        </s-option>
                         <s-option value="BEFORE_OFFER">Before offer</s-option>
                         <s-option value="AFTER_PRICE">
                           After price and savings

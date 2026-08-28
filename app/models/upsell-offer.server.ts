@@ -52,7 +52,7 @@ export const parseCustomContentSections = (formData: FormData) => {
   if (!formData.has("customSectionsPresent")) return [];
   const requestedCount = Number(formData.get("customSectionCount") ?? 0);
   const count = Number.isInteger(requestedCount)
-    ? Math.min(Math.max(requestedCount, 0), 4)
+    ? Math.min(Math.max(requestedCount, 0), 5)
     : 0;
 
   return Array.from({ length: count }, (_, position) => {

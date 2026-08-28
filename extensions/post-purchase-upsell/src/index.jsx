@@ -327,7 +327,7 @@ function OfferApp({ extensionInput, offer }) {
     customContentSections: Array.isArray(offer.content?.customContentSections)
       ? offer.content.customContentSections
           .filter((section) => section && section.enabled !== false)
-          .slice(0, 4)
+          .slice(0, 5)
       : [],
   };
   const [candidateId, setCandidateId] = useState(offer.candidates[0].id);

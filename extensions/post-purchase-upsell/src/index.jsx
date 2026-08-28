@@ -29,10 +29,7 @@ const APP_URL = "https://upsell-shopify-app.onrender.com";
 // Temporary isolation page is retained for future troubleshooting. Keep this
 // disabled during normal offer rendering.
 const STATIC_DIAGNOSTIC_MODE = false;
-const DIAGNOSTIC_SHOPS = new Set([
-  "citylocsdev.myshopify.com",
-  "citylocs.myshopify.com",
-]);
+const DIAGNOSTIC_SHOPS = new Set(["citylocsdev.myshopify.com"]);
 
 async function renderDiagnostic(storage, message) {
   try {

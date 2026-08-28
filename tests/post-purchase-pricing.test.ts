@@ -48,26 +48,35 @@ assert.ok(Math.abs((bundleDiscount?.value ?? 0) - 42.85033819186434) < 1e-10);
 const bundleChanges = createBundleChanges({
   variantId: 123,
   price: 34.99,
-  bundleTotal: 59.99,
+  bundleTotal: 59.97,
   quantity: 3,
   currencyCode: "USD",
 });
-assert.equal(bundleChanges?.length, 2);
+assert.equal(bundleChanges?.length, 1);
 assert.deepEqual(
   bundleChanges?.map((change) => ({
     quantity: change.quantity,
     title: change.discount.title,
   })),
-  [
-    { quantity: 2, title: "$20.00 each" },
-    { quantity: 1, title: "$19.99 each" },
-  ],
+  [{ quantity: 3, title: "$19.99 each" }],
 );
 assert.ok(
   bundleChanges?.every(
     (change) =>
-      change.variantId === 123 && change.discount.valueType === "percentage",
+      change.variantId === 123 &&
+      change.discount.valueType === "fixed_amount" &&
+      change.discount.value === 15,
   ),
+);
+assert.equal(
+  createBundleChanges({
+    variantId: 123,
+    price: 34.99,
+    bundleTotal: 59.99,
+    quantity: 3,
+    currencyCode: "USD",
+  }),
+  null,
 );
 
 for (const invalid of [

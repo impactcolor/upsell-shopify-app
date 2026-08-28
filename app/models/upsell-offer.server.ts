@@ -268,6 +268,14 @@ export const parseOfferForm = (formData: FormData) => {
     throw new Error("Bundle quantity must be at least 2");
   }
   if (
+    discountType === "BUNDLE_PRICE" &&
+    Math.round(discountValue * 100) % maxQuantity !== 0
+  ) {
+    throw new Error(
+      "Bundle total must divide evenly by the bundle quantity in whole cents",
+    );
+  }
+  if (
     offerPrice !== null &&
     discountType === "BUNDLE_PRICE" &&
     discountValue >= offerPrice * maxQuantity

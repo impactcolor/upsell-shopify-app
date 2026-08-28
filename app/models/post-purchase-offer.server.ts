@@ -512,28 +512,23 @@ export const createBundleChanges = ({
   const priceCents = Math.round(price * 100);
   const totalCents = Math.round(bundleTotal * 100);
   if (totalCents >= priceCents * quantity) return null;
+  if (totalCents % quantity !== 0) return null;
 
-  const lowerUnitCents = Math.floor(totalCents / quantity);
-  const higherUnitCount = totalCents % quantity;
-  const lowerUnitCount = quantity - higherUnitCount;
-  const groups = [
-    { unitCents: lowerUnitCents + 1, quantity: higherUnitCount },
-    { unitCents: lowerUnitCents, quantity: lowerUnitCount },
-  ].filter((group) => group.quantity > 0);
+  const unitPriceCents = totalCents / quantity;
+  const unitDiscountCents = priceCents - unitPriceCents;
 
-  return groups.map((group) => {
-    const unitPrice = group.unitCents / 100;
-    return {
+  return [
+    {
       type: "add_variant",
       variantId,
-      quantity: group.quantity,
+      quantity,
       discount: {
-        value: ((priceCents - group.unitCents) / priceCents) * 100,
-        valueType: "percentage",
-        title: `${formatMoney(unitPrice, currencyCode)} each`,
+        value: unitDiscountCents / 100,
+        valueType: "fixed_amount",
+        title: `${formatMoney(unitPriceCents / 100, currencyCode)} each`,
       },
-    };
-  });
+    },
+  ];
 };
 
 export const calculateOfferDiscount = ({

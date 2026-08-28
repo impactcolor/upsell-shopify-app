@@ -653,6 +653,7 @@ export default function OfferDetailsPage() {
               <s-banner heading="Bundle-total offer" tone="info">
                 The customer accepts the complete bundle quantity at this total
                 price. The quantity selector is hidden for this pricing mode.
+                The total must divide evenly by the quantity in whole cents.
               </s-banner>
             )}
           </s-stack>

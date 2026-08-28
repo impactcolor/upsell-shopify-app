@@ -521,7 +521,7 @@ export default function OffersPage() {
                   discountType === "FIXED_PRICE"
                     ? "15"
                     : discountType === "BUNDLE_PRICE"
-                      ? "59.99"
+                      ? "59.98"
                       : "10"
                 }
                 required
@@ -536,7 +536,7 @@ export default function OffersPage() {
                 min={discountType === "BUNDLE_PRICE" ? 2 : 1}
                 max={100}
                 step={1}
-                value="1"
+                value={discountType === "BUNDLE_PRICE" ? "2" : "1"}
                 required
               />
             </s-grid>
@@ -552,7 +552,8 @@ export default function OffersPage() {
               <s-banner heading="Bundle-total offer" tone="info">
                 The customer accepts the complete bundle quantity at the
                 configured total price. Individual quantities cannot be
-                selected.
+                selected. The total must divide evenly by the quantity in whole
+                cents.
               </s-banner>
             )}
 

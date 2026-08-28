@@ -98,20 +98,10 @@ const exactBundleChanges = [
   {
     type: "add_variant",
     variantId: 123,
-    quantity: 2,
+    quantity: 3,
     discount: {
-      value: 42.84,
-      valueType: "percentage",
-      title: "$20.00 each",
-    },
-  },
-  {
-    type: "add_variant",
-    variantId: 123,
-    quantity: 1,
-    discount: {
-      value: 42.87,
-      valueType: "percentage",
+      value: 15,
+      valueType: "fixed_amount",
       title: "$19.99 each",
     },
   },
@@ -132,7 +122,7 @@ const verifiedBundle = jwt.verify(
 ) as { changes: Array<{ quantity: number }> };
 assert.deepEqual(
   verifiedBundle.changes.map((change) => change.quantity),
-  [2, 1],
+  [3],
 );
 assert.throws(() =>
   signPostPurchaseChangeset({

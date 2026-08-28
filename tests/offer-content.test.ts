@@ -45,12 +45,21 @@ assert.equal(defaults.showFooterNote, true);
 
 const bundleForm = baseForm();
 bundleForm.set("discountType", "BUNDLE_PRICE");
-bundleForm.set("discountValue", "59.99");
+bundleForm.set("discountValue", "59.97");
 bundleForm.set("maxQuantity", "3");
 const bundle = parseOfferForm(bundleForm);
 assert.equal(bundle.discountType, "BUNDLE_PRICE");
-assert.equal(bundle.discountValue, 59.99);
+assert.equal(bundle.discountValue, 59.97);
 assert.equal(bundle.maxQuantity, 3);
+
+const unevenBundleForm = baseForm();
+unevenBundleForm.set("discountType", "BUNDLE_PRICE");
+unevenBundleForm.set("discountValue", "59.99");
+unevenBundleForm.set("maxQuantity", "3");
+assert.throws(
+  () => parseOfferForm(unevenBundleForm),
+  /Bundle total must divide evenly by the bundle quantity in whole cents/,
+);
 
 const oneItemBundleForm = baseForm();
 oneItemBundleForm.set("discountType", "BUNDLE_PRICE");

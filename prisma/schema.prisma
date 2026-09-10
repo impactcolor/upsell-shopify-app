@@ -115,9 +115,25 @@ model UpsellOffer {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   customContentSections CustomContentSection[]
+  triggers              OfferTrigger[]
 
   @@index([shop, status])
   @@index([shop, triggerType, triggerResourceId])
+}
+
+model OfferTrigger {
+  id            String      @id @default(cuid())
+  offerId       String
+  resourceType  TriggerType
+  resourceId    String
+  resourceTitle String
+  imageUrl      String?
+  position      Int
+  offer         UpsellOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([offerId, resourceType, resourceId])
+  @@unique([offerId, position])
+  @@index([resourceType, resourceId])
 }
 
 model CustomContentSection {

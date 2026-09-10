@@ -120,6 +120,54 @@ const integerNumber = (formData: FormData, key: string) => {
   return value;
 };
 
+export type ParsedOfferTrigger = {
+  resourceType: TriggerType;
+  resourceId: string;
+  resourceTitle: string;
+  imageUrl: string | null;
+  position: number;
+};
+
+export const parseOfferTriggers = (
+  formData: FormData,
+): ParsedOfferTrigger[] => {
+  const triggerType: TriggerType =
+    requiredString(formData, "triggerType") === "COLLECTION"
+      ? "COLLECTION"
+      : "PRODUCT";
+  const requestedCount = Number(formData.get("triggerCount") ?? 0);
+
+  if (!Number.isInteger(requestedCount) || requestedCount < 1) {
+    return [
+      {
+        resourceType: triggerType,
+        resourceId: requiredString(formData, "triggerResourceId"),
+        resourceTitle: requiredString(formData, "triggerResourceTitle"),
+        imageUrl: optionalString(formData, "triggerImageUrl"),
+        position: 0,
+      },
+    ];
+  }
+
+  const triggers = Array.from(
+    { length: Math.min(requestedCount, 100) },
+    (_, position) => ({
+      resourceType: triggerType,
+      resourceId: requiredString(formData, `trigger_${position}_id`),
+      resourceTitle: requiredString(formData, `trigger_${position}_title`),
+      imageUrl: optionalString(formData, `trigger_${position}_imageUrl`),
+      position,
+    }),
+  );
+  const unique = new Map(
+    triggers.map((trigger) => [trigger.resourceId, trigger]),
+  );
+  if (unique.size !== triggers.length) {
+    throw new Error("Each trigger can only be selected once");
+  }
+  return triggers;
+};
+
 export const parseOfferForm = (formData: FormData) => {
   const rawTriggerType = requiredString(formData, "triggerType");
   const triggerType: TriggerType =
@@ -355,15 +403,36 @@ export const ensureOfferIsUnique = async (
   shop: string,
   offer: ParsedOffer,
   excludeId?: string,
+  triggers?: ParsedOfferTrigger[],
 ) => {
+  const selectedTriggers = triggers ?? [
+    {
+      resourceType: offer.triggerType,
+      resourceId: offer.triggerResourceId,
+    },
+  ];
   const duplicate = await prisma.upsellOffer.findFirst({
     where: {
       shop,
-      triggerType: offer.triggerType,
-      triggerResourceId: offer.triggerResourceId,
       upsellAction: offer.upsellAction,
       offerVariantId:
         offer.upsellAction === "SPECIFIC_VARIANT" ? offer.offerVariantId : null,
+      OR: [
+        {
+          triggers: {
+            some: {
+              OR: selectedTriggers.map((trigger) => ({
+                resourceType: trigger.resourceType,
+                resourceId: trigger.resourceId,
+              })),
+            },
+          },
+        },
+        ...selectedTriggers.map((trigger) => ({
+          triggerType: trigger.resourceType,
+          triggerResourceId: trigger.resourceId,
+        })),
+      ],
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
     select: { name: true },

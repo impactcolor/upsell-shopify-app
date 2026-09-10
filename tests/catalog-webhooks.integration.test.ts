@@ -40,6 +40,16 @@ try {
       status: "ACTIVE",
     },
   });
+  await database.offerTrigger.create({
+    data: {
+      id: "product-trigger",
+      offerId: "product-offer",
+      resourceType: "PRODUCT",
+      resourceId: "gid://shopify/Product/100",
+      resourceTitle: "Old trigger title",
+      position: 0,
+    },
+  });
 
   const firstUpdate = await processCatalogWebhook(
     {
@@ -66,6 +76,20 @@ try {
   assert.equal(updated.offerVariantTitle, "Updated variant");
   assert.equal(updated.offerPrice?.toString(), "18.5");
   assert.equal(updated.status, "ACTIVE");
+  assert.deepEqual(
+    await database.offerTrigger.findUniqueOrThrow({
+      where: { id: "product-trigger" },
+    }),
+    {
+      id: "product-trigger",
+      offerId: "product-offer",
+      resourceType: "PRODUCT",
+      resourceId: "gid://shopify/Product/100",
+      resourceTitle: "Updated product",
+      imageUrl: "https://cdn.example.test/product.jpg",
+      position: 0,
+    },
+  );
 
   const duplicate = await processCatalogWebhook(
     {
@@ -118,12 +142,56 @@ try {
       status: "ACTIVE",
     },
   });
+  await database.offerTrigger.create({
+    data: {
+      id: "collection-trigger",
+      offerId: "collection-offer",
+      resourceType: "COLLECTION",
+      resourceId: "gid://shopify/Collection/200",
+      resourceTitle: "Collection",
+      position: 0,
+    },
+  });
+  await database.offerTrigger.create({
+    data: {
+      id: "second-collection-trigger",
+      offerId: "collection-offer",
+      resourceType: "COLLECTION",
+      resourceId: "gid://shopify/Collection/201",
+      resourceTitle: "Second collection",
+      position: 1,
+    },
+  });
   await processCatalogWebhook(
     {
       shop,
       webhookId: "webhook-collection-delete",
       topic: "COLLECTIONS_DELETE",
       payload: { id: 200 },
+    },
+    database,
+  );
+  assert.equal(
+    (
+      await database.upsellOffer.findUniqueOrThrow({
+        where: { id: "collection-offer" },
+      })
+    ).status,
+    "ACTIVE",
+  );
+  assert.equal(
+    await database.offerTrigger.count({
+      where: { offerId: "collection-offer" },
+    }),
+    1,
+  );
+
+  await processCatalogWebhook(
+    {
+      shop,
+      webhookId: "webhook-second-collection-delete",
+      topic: "COLLECTIONS_DELETE",
+      payload: { id: 201 },
     },
     database,
   );
@@ -251,6 +319,22 @@ async function createSchema(client: PrismaClient) {
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE "OfferTrigger" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "offerId" TEXT NOT NULL,
+      "resourceType" TEXT NOT NULL,
+      "resourceId" TEXT NOT NULL,
+      "resourceTitle" TEXT NOT NULL,
+      "imageUrl" TEXT,
+      "position" INTEGER NOT NULL,
+      CONSTRAINT "OfferTrigger_offerId_fkey" FOREIGN KEY ("offerId") REFERENCES "UpsellOffer" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE UNIQUE INDEX "OfferTrigger_offerId_resourceType_resourceId_key"
+      ON "OfferTrigger"("offerId", "resourceType", "resourceId")`,
+    `CREATE UNIQUE INDEX "OfferTrigger_offerId_position_key"
+      ON "OfferTrigger"("offerId", "position")`,
+    `CREATE INDEX "OfferTrigger_resourceType_resourceId_idx"
+      ON "OfferTrigger"("resourceType", "resourceId")`,
     `CREATE TABLE "WebhookDelivery" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "shop" TEXT NOT NULL,

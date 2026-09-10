@@ -16,6 +16,7 @@ import {
   ensureOfferIsUnique,
   parseCustomContentSections,
   parseOfferForm,
+  parseOfferTriggers,
   serializeOffer,
 } from "../models/upsell-offer.server";
 import prisma from "../db.server";
@@ -64,7 +65,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const offer = await prisma.upsellOffer.findFirst({
     where: { id: params.id, shop: session.shop },
-    include: { customContentSections: { orderBy: { position: "asc" } } },
+    include: {
+      customContentSections: { orderBy: { position: "asc" } },
+      triggers: { orderBy: { position: "asc" } },
+    },
   });
 
   if (!offer) throw new Response("Offer not found", { status: 404 });
@@ -106,6 +110,18 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   return {
     offer: serializeOffer(offer),
     customContentSections: offer.customContentSections,
+    triggers:
+      offer.triggers.length > 0
+        ? offer.triggers
+        : [
+            {
+              resourceType: offer.triggerType,
+              resourceId: offer.triggerResourceId,
+              resourceTitle: offer.triggerResourceTitle,
+              imageUrl: offer.triggerImageUrl,
+              position: 0,
+            },
+          ],
     imageOptions,
     fileWriteAccess: grantedScopes.has("write_files"),
   };
@@ -125,11 +141,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     const formData = await request.formData();
     const offer = parseOfferForm(formData);
+    const triggers = parseOfferTriggers(formData);
     const customContentSections = parseCustomContentSections(formData);
-    await ensureOfferIsUnique(session.shop, offer, id);
+    await ensureOfferIsUnique(session.shop, offer, id, triggers);
     await prisma.$transaction([
       prisma.customContentSection.deleteMany({ where: { offerId: id } }),
+      prisma.offerTrigger.deleteMany({ where: { offerId: id } }),
       prisma.upsellOffer.update({ where: { id }, data: offer }),
+      ...triggers.map((trigger) =>
+        prisma.offerTrigger.create({ data: { ...trigger, offerId: id } }),
+      ),
       ...customContentSections.map((section) =>
         prisma.customContentSection.create({
           data: { ...section, offerId: id },
@@ -150,6 +171,7 @@ export default function OfferDetailsPage() {
   const {
     offer: savedOffer,
     customContentSections: savedCustomContentSections,
+    triggers: savedTriggers,
     imageOptions: savedImageOptions,
     fileWriteAccess,
   } = useLoaderData<typeof loader>();
@@ -160,11 +182,13 @@ export default function OfferDetailsPage() {
   const [triggerType, setTriggerType] = useState<TriggerType>(
     savedOffer.triggerType,
   );
-  const [trigger, setTrigger] = useState<SelectedTrigger | null>({
-    id: savedOffer.triggerResourceId,
-    title: savedOffer.triggerResourceTitle,
-    imageUrl: savedOffer.triggerImageUrl ?? "",
-  });
+  const [triggers, setTriggers] = useState<SelectedTrigger[]>(
+    savedTriggers.map((trigger) => ({
+      id: trigger.resourceId,
+      title: trigger.resourceTitle,
+      imageUrl: trigger.imageUrl ?? "",
+    })),
+  );
   const [upsellAction, setUpsellAction] = useState<UpsellAction>(
     savedOffer.upsellAction,
   );
@@ -370,15 +394,17 @@ export default function OfferDetailsPage() {
       const selected = await shopify.resourcePicker({
         type: "collection",
         action: "select",
-        multiple: false,
+        multiple: true,
+        selectionIds: triggers.map((trigger) => ({ id: trigger.id })),
       });
-      const collection = selected?.[0];
-      if (collection) {
-        setTrigger({
-          id: collection.id,
-          title: collection.title,
-          imageUrl: "",
-        });
+      if (selected) {
+        setTriggers(
+          selected.map((collection) => ({
+            id: collection.id,
+            title: collection.title,
+            imageUrl: collection.image?.originalSrc ?? "",
+          })),
+        );
       }
       return;
     }
@@ -386,17 +412,18 @@ export default function OfferDetailsPage() {
     const selected = await shopify.resourcePicker({
       type: "product",
       action: "select",
-      multiple: false,
+      multiple: true,
       filter: { archived: false, draft: false, hidden: false, variants: false },
-      ...(trigger ? { selectionIds: [{ id: trigger.id }] } : {}),
+      selectionIds: triggers.map((trigger) => ({ id: trigger.id })),
     });
-    const product = selected?.[0];
-    if (!product) return;
-    setTrigger({
-      id: product.id,
-      title: product.title,
-      imageUrl: product.images[0]?.originalSrc ?? "",
-    });
+    if (!selected) return;
+    setTriggers(
+      selected.map((product) => ({
+        id: product.id,
+        title: product.title,
+        imageUrl: product.images[0]?.originalSrc ?? "",
+      })),
+    );
   };
 
   const chooseOffer = async () => {
@@ -440,20 +467,36 @@ export default function OfferDetailsPage() {
         onReset={() => window.location.reload()}
       >
         <input type="hidden" name="triggerType" value={triggerType} />
+        <input type="hidden" name="triggerCount" value={triggers.length} />
+        {triggers.map((trigger, index) => (
+          <span key={trigger.id} hidden>
+            <input name={`trigger_${index}_id`} value={trigger.id} readOnly />
+            <input
+              name={`trigger_${index}_title`}
+              value={trigger.title}
+              readOnly
+            />
+            <input
+              name={`trigger_${index}_imageUrl`}
+              value={trigger.imageUrl}
+              readOnly
+            />
+          </span>
+        ))}
         <input
           type="hidden"
           name="triggerResourceId"
-          value={trigger?.id ?? ""}
+          value={triggers[0]?.id ?? ""}
         />
         <input
           type="hidden"
           name="triggerResourceTitle"
-          value={trigger?.title ?? ""}
+          value={triggers[0]?.title ?? ""}
         />
         <input
           type="hidden"
           name="triggerImageUrl"
-          value={trigger?.imageUrl ?? ""}
+          value={triggers[0]?.imageUrl ?? ""}
         />
         <input type="hidden" name="upsellAction" value={upsellAction} />
         <input
@@ -517,22 +560,47 @@ export default function OfferDetailsPage() {
                           ? "COLLECTION"
                           : "PRODUCT",
                       );
-                      setTrigger(null);
+                      setTriggers([]);
                     }}
                   >
                     <s-option value="PRODUCT">Product</s-option>
                     <s-option value="COLLECTION">Collection</s-option>
                   </s-select>
-                  {trigger?.imageUrl && (
-                    <s-thumbnail src={trigger.imageUrl} alt={trigger.title} />
+                  {triggers.length === 0 ? (
+                    <s-text>No {triggerType.toLowerCase()}s selected</s-text>
+                  ) : (
+                    <s-stack direction="block" gap="small">
+                      {triggers.map((trigger) => (
+                        <s-stack
+                          key={trigger.id}
+                          direction="inline"
+                          gap="small"
+                          alignItems="center"
+                        >
+                          {trigger.imageUrl ? (
+                            <s-thumbnail
+                              src={trigger.imageUrl}
+                              alt={trigger.title}
+                            />
+                          ) : null}
+                          <s-text>{trigger.title}</s-text>
+                          <s-button
+                            type="button"
+                            variant="tertiary"
+                            onClick={() =>
+                              setTriggers((items) =>
+                                items.filter((item) => item.id !== trigger.id),
+                              )
+                            }
+                          >
+                            Remove
+                          </s-button>
+                        </s-stack>
+                      ))}
+                    </s-stack>
                   )}
-                  <s-text>
-                    {trigger?.title ??
-                      `No ${triggerType.toLowerCase()} selected`}
-                  </s-text>
                   <s-button type="button" onClick={chooseTrigger}>
-                    {trigger ? "Change" : "Select"} trigger{" "}
-                    {triggerType.toLowerCase()}
+                    Select trigger {triggerType.toLowerCase()}s
                   </s-button>
                 </s-stack>
               </s-box>
@@ -563,7 +631,7 @@ export default function OfferDetailsPage() {
                           src={offerImageUrl}
                           alt={
                             offer?.productTitle ??
-                            trigger?.title ??
+                            triggers[0]?.title ??
                             "Upsell offer"
                           }
                         />
@@ -598,7 +666,7 @@ export default function OfferDetailsPage() {
                     productTitle={
                       specificVariant
                         ? (offer?.productTitle ?? "Upsell offer")
-                        : (trigger?.title ?? "Upsell offer")
+                        : (triggers[0]?.title ?? "Upsell offer")
                     }
                     canUpload={fileWriteAccess}
                     onChange={setOfferImageUrl}
@@ -609,9 +677,10 @@ export default function OfferDetailsPage() {
             </s-grid>
 
             <s-banner heading="Matching-line rule" tone="info">
-              The offer is shown only when exactly one purchased line matches
-              this trigger. Multiple units on that one line are allowed; two or
-              more matching lines suppress the offer.
+              The offer is shown when exactly one purchased line matches any
+              selected trigger. Multiple units—and multiple selected collections
+              matching that same line—count once. Two or more matching cart
+              lines suppress the offer.
             </s-banner>
 
             <s-grid gridTemplateColumns="1fr 1fr" gap="base">
@@ -712,7 +781,9 @@ export default function OfferDetailsPage() {
                 label="Desktop banner image"
                 imageOptions={imageOptions}
                 imageUrl={topBannerImageSection?.desktopImageUrl ?? ""}
-                productTitle={offer?.productTitle ?? trigger?.title ?? "Offer"}
+                productTitle={
+                  offer?.productTitle ?? triggers[0]?.title ?? "Offer"
+                }
                 canUpload={fileWriteAccess}
                 removeHelpText="Removing this image hides the desktop image from the top offer banner."
                 onChange={(desktopImageUrl) =>
@@ -723,7 +794,9 @@ export default function OfferDetailsPage() {
                 label="Mobile banner image"
                 imageOptions={imageOptions}
                 imageUrl={topBannerImageSection?.mobileImageUrl ?? ""}
-                productTitle={offer?.productTitle ?? trigger?.title ?? "Offer"}
+                productTitle={
+                  offer?.productTitle ?? triggers[0]?.title ?? "Offer"
+                }
                 canUpload={fileWriteAccess}
                 removeHelpText="Removing this image uses the desktop banner image on mobile."
                 onChange={(mobileImageUrl) =>
@@ -960,7 +1033,9 @@ export default function OfferDetailsPage() {
             <OfferImagePicker
               imageOptions={imageOptions}
               imageUrl={benefitsImageUrl}
-              productTitle={offer?.productTitle ?? trigger?.title ?? "Offer"}
+              productTitle={
+                offer?.productTitle ?? triggers[0]?.title ?? "Offer"
+              }
               canUpload={fileWriteAccess}
               onChange={setBenefitsImageUrl}
             />
@@ -1220,7 +1295,7 @@ export default function OfferDetailsPage() {
                         imageOptions={imageOptions}
                         imageUrl={section.desktopImageUrl}
                         productTitle={
-                          offer?.productTitle ?? trigger?.title ?? "Offer"
+                          offer?.productTitle ?? triggers[0]?.title ?? "Offer"
                         }
                         canUpload={fileWriteAccess}
                         onChange={(desktopImageUrl) =>
@@ -1232,7 +1307,7 @@ export default function OfferDetailsPage() {
                         imageOptions={imageOptions}
                         imageUrl={section.mobileImageUrl}
                         productTitle={
-                          offer?.productTitle ?? trigger?.title ?? "Offer"
+                          offer?.productTitle ?? triggers[0]?.title ?? "Offer"
                         }
                         canUpload={fileWriteAccess}
                         onChange={(mobileImageUrl) =>
@@ -1362,7 +1437,9 @@ export default function OfferDetailsPage() {
                     <s-thumbnail
                       src={offerImageUrl}
                       alt={
-                        offer?.productTitle ?? trigger?.title ?? "Upsell offer"
+                        offer?.productTitle ??
+                        triggers[0]?.title ??
+                        "Upsell offer"
                       }
                       size="large"
                     />
@@ -1437,7 +1514,7 @@ export default function OfferDetailsPage() {
             <s-button
               type="submit"
               variant="primary"
-              disabled={!trigger || (specificVariant && !offer)}
+              disabled={triggers.length === 0 || (specificVariant && !offer)}
               {...(fetcher.state !== "idle" ? { loading: true } : {})}
             >
               Save offer

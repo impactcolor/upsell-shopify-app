@@ -24,18 +24,20 @@ export type EligibilityResult<TLine extends PurchasedLine> =
  */
 export const findSingleQualifyingLine = <TLine extends PurchasedLine>(
   lines: readonly TLine[],
-  trigger: OfferTrigger,
+  trigger: OfferTrigger | readonly OfferTrigger[],
   isProductInCollection: CollectionMembershipLookup = () => false,
 ): EligibilityResult<TLine> => {
-  const triggerId = normalizeShopifyId(trigger.resourceId);
+  const triggers = Array.isArray(trigger) ? trigger : [trigger];
   const matchingLines: TLine[] = [];
 
   for (const line of lines) {
     const productId = normalizeShopifyId(line.productId);
-    const matches =
-      trigger.type === "PRODUCT"
+    const matches = triggers.some((item) => {
+      const triggerId = normalizeShopifyId(item.resourceId);
+      return item.type === "PRODUCT"
         ? productId === triggerId
         : isProductInCollection(productId, triggerId);
+    });
 
     if (!matches) continue;
     matchingLines.push(line);

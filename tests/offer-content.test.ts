@@ -4,7 +4,7 @@ process.env.SHOPIFY_API_KEY = "test-api-key";
 process.env.SHOPIFY_API_SECRET = "test-api-secret";
 process.env.SHOPIFY_APP_URL = "https://example.test";
 
-const { parseCustomContentSections, parseOfferForm } =
+const { parseCustomContentSections, parseOfferForm, parseOfferTriggers } =
   await import("../app/models/upsell-offer.server.js");
 const { sanitizeLineItemProperties } =
   await import("../app/models/post-purchase-offer.server.js");
@@ -42,6 +42,54 @@ assert.equal(defaults.savingsStyle, "HIGHLIGHTED");
 assert.equal(defaults.savingsLabel, "");
 assert.equal(defaults.showSavingsLabel, true);
 assert.equal(defaults.showFooterNote, true);
+
+assert.deepEqual(parseOfferTriggers(baseForm()), [
+  {
+    resourceType: "PRODUCT",
+    resourceId: "gid://shopify/Product/1",
+    resourceTitle: "Test product",
+    imageUrl: null,
+    position: 0,
+  },
+]);
+
+const multipleTriggerForm = baseForm();
+multipleTriggerForm.set("triggerCount", "2");
+multipleTriggerForm.set("trigger_0_id", "gid://shopify/Product/1");
+multipleTriggerForm.set("trigger_0_title", "First product");
+multipleTriggerForm.set(
+  "trigger_0_imageUrl",
+  "https://cdn.shopify.com/first.png",
+);
+multipleTriggerForm.set("trigger_1_id", "gid://shopify/Product/2");
+multipleTriggerForm.set("trigger_1_title", "Second product");
+assert.deepEqual(parseOfferTriggers(multipleTriggerForm), [
+  {
+    resourceType: "PRODUCT",
+    resourceId: "gid://shopify/Product/1",
+    resourceTitle: "First product",
+    imageUrl: "https://cdn.shopify.com/first.png",
+    position: 0,
+  },
+  {
+    resourceType: "PRODUCT",
+    resourceId: "gid://shopify/Product/2",
+    resourceTitle: "Second product",
+    imageUrl: null,
+    position: 1,
+  },
+]);
+
+const duplicateTriggerForm = baseForm();
+duplicateTriggerForm.set("triggerCount", "2");
+duplicateTriggerForm.set("trigger_0_id", "gid://shopify/Product/1");
+duplicateTriggerForm.set("trigger_0_title", "Test product");
+duplicateTriggerForm.set("trigger_1_id", "gid://shopify/Product/1");
+duplicateTriggerForm.set("trigger_1_title", "Test product");
+assert.throws(
+  () => parseOfferTriggers(duplicateTriggerForm),
+  /Each trigger can only be selected once/,
+);
 
 const bundleForm = baseForm();
 bundleForm.set("discountType", "BUNDLE_PRICE");

@@ -20,6 +20,7 @@ import {
 import {
   ensureOfferIsUnique,
   parseOfferForm,
+  parseOfferTriggers,
   serializeOffer,
 } from "../models/upsell-offer.server";
 import prisma from "../db.server";
@@ -52,6 +53,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.upsellOffer.findMany({
         where: { shop: session.shop },
         orderBy: { createdAt: "desc" },
+        include: { triggers: { orderBy: { position: "asc" } } },
       }),
       admin.graphql(`#graphql
       query ShopCurrency {
@@ -78,7 +80,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   return {
-    offers: offers.map(serializeOffer),
+    offers: offers.map((offer) => ({
+      ...serializeOffer(offer),
+      triggers: offer.triggers,
+    })),
     currencyCode: currencyJson.data?.shop.currencyCode ?? "USD",
     postPurchaseAppInUse:
       typeof postPurchaseAppInUse === "boolean" ? postPurchaseAppInUse : null,
@@ -116,9 +121,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     const offer = parseOfferForm(formData);
-    await ensureOfferIsUnique(session.shop, offer);
+    const triggers = parseOfferTriggers(formData);
+    await ensureOfferIsUnique(session.shop, offer, undefined, triggers);
     await prisma.upsellOffer.create({
-      data: { shop: session.shop, ...offer, status: "DRAFT" },
+      data: {
+        shop: session.shop,
+        ...offer,
+        status: "DRAFT",
+        triggers: { create: triggers },
+      },
     });
     return { ok: true, message: "Draft upsell offer created" };
   } catch (error) {
@@ -142,7 +153,7 @@ export default function OffersPage() {
   const revalidator = useRevalidator();
   const shopify = useAppBridge();
   const [triggerType, setTriggerType] = useState<TriggerType>("PRODUCT");
-  const [trigger, setTrigger] = useState<SelectedTrigger | null>(null);
+  const [triggers, setTriggers] = useState<SelectedTrigger[]>([]);
   const [upsellAction, setUpsellAction] =
     useState<UpsellAction>("MATCHING_VARIANT");
   const [offer, setOffer] = useState<SelectedVariant | null>(null);
@@ -198,15 +209,17 @@ export default function OffersPage() {
       const selected = await shopify.resourcePicker({
         type: "collection",
         action: "select",
-        multiple: false,
+        multiple: true,
+        selectionIds: triggers.map((trigger) => ({ id: trigger.id })),
       });
-      const collection = selected?.[0];
-      if (collection) {
-        setTrigger({
-          id: collection.id,
-          title: collection.title,
-          imageUrl: "",
-        });
+      if (selected) {
+        setTriggers(
+          selected.map((collection) => ({
+            id: collection.id,
+            title: collection.title,
+            imageUrl: collection.image?.originalSrc ?? "",
+          })),
+        );
       }
       return;
     }
@@ -214,16 +227,18 @@ export default function OffersPage() {
     const selected = await shopify.resourcePicker({
       type: "product",
       action: "select",
-      multiple: false,
+      multiple: true,
+      selectionIds: triggers.map((trigger) => ({ id: trigger.id })),
       filter: { archived: false, draft: false, hidden: false, variants: false },
     });
-    const product = selected?.[0];
-    if (product) {
-      setTrigger({
-        id: product.id,
-        title: product.title,
-        imageUrl: product.images[0]?.originalSrc ?? "",
-      });
+    if (selected) {
+      setTriggers(
+        selected.map((product) => ({
+          id: product.id,
+          title: product.title,
+          imageUrl: product.images[0]?.originalSrc ?? "",
+        })),
+      );
     }
   };
 
@@ -335,20 +350,36 @@ export default function OffersPage() {
         <fetcher.Form method="post">
           <input type="hidden" name="intent" value="create" />
           <input type="hidden" name="triggerType" value={triggerType} />
+          <input type="hidden" name="triggerCount" value={triggers.length} />
+          {triggers.map((trigger, index) => (
+            <span key={trigger.id} hidden>
+              <input name={`trigger_${index}_id`} value={trigger.id} readOnly />
+              <input
+                name={`trigger_${index}_title`}
+                value={trigger.title}
+                readOnly
+              />
+              <input
+                name={`trigger_${index}_imageUrl`}
+                value={trigger.imageUrl}
+                readOnly
+              />
+            </span>
+          ))}
           <input
             type="hidden"
             name="triggerResourceId"
-            value={trigger?.id ?? ""}
+            value={triggers[0]?.id ?? ""}
           />
           <input
             type="hidden"
             name="triggerResourceTitle"
-            value={trigger?.title ?? ""}
+            value={triggers[0]?.title ?? ""}
           />
           <input
             type="hidden"
             name="triggerImageUrl"
-            value={trigger?.imageUrl ?? ""}
+            value={triggers[0]?.imageUrl ?? ""}
           />
           <input type="hidden" name="upsellAction" value={upsellAction} />
           <input
@@ -400,25 +431,48 @@ export default function OffersPage() {
                           ? "COLLECTION"
                           : "PRODUCT",
                       );
-                      setTrigger(null);
+                      setTriggers([]);
                     }}
                   >
                     <s-option value="PRODUCT">Product</s-option>
                     <s-option value="COLLECTION">Collection</s-option>
                   </s-select>
-                  {trigger?.imageUrl && (
-                    <s-thumbnail
-                      src={trigger.imageUrl}
-                      alt={trigger.title}
-                      size="small"
-                    />
+                  {triggers.length === 0 ? (
+                    <s-text>No {triggerType.toLowerCase()}s selected</s-text>
+                  ) : (
+                    <s-stack direction="block" gap="small">
+                      {triggers.map((trigger) => (
+                        <s-stack
+                          key={trigger.id}
+                          direction="inline"
+                          gap="small"
+                          alignItems="center"
+                        >
+                          {trigger.imageUrl ? (
+                            <s-thumbnail
+                              src={trigger.imageUrl}
+                              alt={trigger.title}
+                              size="small"
+                            />
+                          ) : null}
+                          <s-text>{trigger.title}</s-text>
+                          <s-button
+                            type="button"
+                            variant="tertiary"
+                            onClick={() =>
+                              setTriggers((items) =>
+                                items.filter((item) => item.id !== trigger.id),
+                              )
+                            }
+                          >
+                            Remove
+                          </s-button>
+                        </s-stack>
+                      ))}
+                    </s-stack>
                   )}
-                  <s-text>
-                    {trigger?.title ??
-                      `No ${triggerType.toLowerCase()} selected`}
-                  </s-text>
                   <s-button type="button" onClick={chooseTrigger}>
-                    Select trigger {triggerType.toLowerCase()}
+                    Select trigger {triggerType.toLowerCase()}s
                   </s-button>
                 </s-stack>
               </s-box>
@@ -450,7 +504,7 @@ export default function OffersPage() {
                           src={offerImageUrl}
                           alt={
                             offer?.productTitle ??
-                            trigger?.title ??
+                            triggers[0]?.title ??
                             "Upsell offer"
                           }
                           size="small"
@@ -476,7 +530,7 @@ export default function OffersPage() {
                     productTitle={
                       specificVariant
                         ? (offer?.productTitle ?? "Upsell offer")
-                        : (trigger?.title ?? "Upsell offer")
+                        : (triggers[0]?.title ?? "Upsell offer")
                     }
                     canUpload={fileWriteAccess}
                     onChange={setOfferImageUrl}
@@ -486,9 +540,10 @@ export default function OffersPage() {
             </s-grid>
 
             <s-banner heading="Matching-line rule" tone="info">
-              The offer is shown only when exactly one purchased line matches
-              this trigger. Multiple units on that one line are allowed; two or
-              more matching lines suppress the offer.
+              The offer is shown when exactly one purchased line matches any
+              selected trigger. Multiple units—and multiple selected collections
+              matching that same line—count once. Two or more matching cart
+              lines suppress the offer.
             </s-banner>
 
             <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="base">
@@ -566,7 +621,7 @@ export default function OffersPage() {
             <s-button
               type="submit"
               variant="primary"
-              disabled={!trigger || (specificVariant && !offer)}
+              disabled={triggers.length === 0 || (specificVariant && !offer)}
               {...(isSubmitting ? { loading: true } : {})}
             >
               Create draft offer
@@ -592,10 +647,21 @@ export default function OffersPage() {
                   gap="base"
                   alignItems="center"
                 >
-                  {item.offerImageUrl || item.triggerImageUrl ? (
+                  {item.offerImageUrl ||
+                  item.triggers[0]?.imageUrl ||
+                  item.triggerImageUrl ? (
                     <s-thumbnail
-                      src={item.offerImageUrl ?? item.triggerImageUrl ?? ""}
-                      alt={item.offerProductTitle ?? item.triggerResourceTitle}
+                      src={
+                        item.offerImageUrl ??
+                        item.triggers[0]?.imageUrl ??
+                        item.triggerImageUrl ??
+                        ""
+                      }
+                      alt={
+                        item.offerProductTitle ??
+                        item.triggers[0]?.resourceTitle ??
+                        item.triggerResourceTitle
+                      }
                       size="small"
                     />
                   ) : (
@@ -621,7 +687,12 @@ export default function OffersPage() {
                     </s-stack>
                     <s-text>
                       {item.triggerType === "COLLECTION" ? "Collection: " : ""}
-                      {item.triggerResourceTitle} → {upsellActionLabel(item)}
+                      {item.triggers[0]?.resourceTitle ??
+                        item.triggerResourceTitle}
+                      {item.triggers.length > 1
+                        ? ` +${item.triggers.length - 1} more`
+                        : ""}{" "}
+                      → {upsellActionLabel(item)}
                     </s-text>
                     <s-text color="subdued">
                       {pricingLabel(item)} · {quantityLabel(item)}

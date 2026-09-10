@@ -61,4 +61,40 @@ assert.deepEqual(productTriggerRejectsTwoMatchingLines, {
   reason: "MULTIPLE_MATCHING_LINES",
 });
 
+const anySelectedProductCanTrigger = findSingleQualifyingLine(
+  [{ productId: 10, variantId: 101, quantity: 2 }],
+  [
+    { type: "PRODUCT", resourceId: "gid://shopify/Product/9" },
+    { type: "PRODUCT", resourceId: "gid://shopify/Product/10" },
+  ],
+);
+assert.equal(anySelectedProductCanTrigger.eligible, true);
+
+const oneLineMatchingMultipleCollectionsCountsOnce = findSingleQualifyingLine(
+  [{ productId: 1, variantId: 11, quantity: 1 }],
+  [
+    { type: "COLLECTION", resourceId: "gid://shopify/Collection/100" },
+    { type: "COLLECTION", resourceId: "gid://shopify/Collection/101" },
+  ],
+  (productId, collectionId) =>
+    productId === "1" && ["100", "101"].includes(collectionId),
+);
+assert.equal(oneLineMatchingMultipleCollectionsCountsOnce.eligible, true);
+
+const differentLinesMatchingDifferentProductsAreRejected =
+  findSingleQualifyingLine(
+    [
+      { productId: 9, variantId: 91, quantity: 1 },
+      { productId: 10, variantId: 101, quantity: 1 },
+    ],
+    [
+      { type: "PRODUCT", resourceId: "gid://shopify/Product/9" },
+      { type: "PRODUCT", resourceId: "gid://shopify/Product/10" },
+    ],
+  );
+assert.deepEqual(differentLinesMatchingDifferentProductsAreRejected, {
+  eligible: false,
+  reason: "MULTIPLE_MATCHING_LINES",
+});
+
 console.log("Post-purchase eligibility tests passed");

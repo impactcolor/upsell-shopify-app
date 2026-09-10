@@ -159,7 +159,10 @@ export const getEligiblePostPurchaseOffer = async ({
   const offers = await prisma.upsellOffer.findMany({
     where: { shop, status: "ACTIVE" },
     orderBy: { createdAt: "asc" },
-    include: { customContentSections: { orderBy: { position: "asc" } } },
+    include: {
+      customContentSections: { orderBy: { position: "asc" } },
+      triggers: { orderBy: { position: "asc" } },
+    },
   });
   console.info("[post-purchase] Loaded configuration", {
     shop,
@@ -186,13 +189,29 @@ export const getEligiblePostPurchaseOffer = async ({
     loadedProductCount: catalog.byProductId.size,
   });
 
+  offers.sort((left, right) => {
+    const leftType = left.triggers[0]?.resourceType ?? left.triggerType;
+    const rightType = right.triggers[0]?.resourceType ?? right.triggerType;
+    if (leftType !== rightType) return leftType === "PRODUCT" ? -1 : 1;
+    return left.createdAt.getTime() - right.createdAt.getTime();
+  });
+
   for (const offer of offers) {
+    const triggers =
+      offer.triggers.length > 0
+        ? offer.triggers.map((trigger) => ({
+            type: trigger.resourceType,
+            resourceId: trigger.resourceId,
+          }))
+        : [
+            {
+              type: offer.triggerType,
+              resourceId: offer.triggerResourceId,
+            },
+          ];
     const eligibility = findSingleQualifyingLine(
       lines,
-      {
-        type: offer.triggerType,
-        resourceId: offer.triggerResourceId,
-      },
+      triggers,
       (productId, collectionId) =>
         catalog.byProductId
           .get(normalizeShopifyId(productId))
@@ -203,6 +222,7 @@ export const getEligiblePostPurchaseOffer = async ({
       offerId: offer.id,
       triggerType: offer.triggerType,
       triggerResourceId: offer.triggerResourceId,
+      triggerCount: triggers.length,
       eligibility: eligibility.eligible ? "ELIGIBLE" : eligibility.reason,
     });
 

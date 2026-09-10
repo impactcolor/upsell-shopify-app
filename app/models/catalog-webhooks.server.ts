@@ -10,17 +10,20 @@ type CatalogWebhookTopic =
 
 type CatalogPayload = Record<string, unknown>;
 
-export const processCatalogWebhook = async ({
-  shop,
-  webhookId,
-  topic,
-  payload,
-}: {
-  shop: string;
-  webhookId: string;
-  topic: CatalogWebhookTopic;
-  payload: CatalogPayload;
-}, database: PrismaClient = prisma) => {
+export const processCatalogWebhook = async (
+  {
+    shop,
+    webhookId,
+    topic,
+    payload,
+  }: {
+    shop: string;
+    webhookId: string;
+    topic: CatalogWebhookTopic;
+    payload: CatalogPayload;
+  },
+  database: PrismaClient = prisma,
+) => {
   try {
     await database.$transaction(async (tx) => {
       await tx.webhookDelivery.create({
@@ -44,19 +47,22 @@ export const processCatalogWebhook = async ({
   }
 };
 
-export const processAppWebhook = async ({
-  shop,
-  webhookId,
-  topic,
-  currentScopes,
-  sessionId,
-}: {
-  shop: string;
-  webhookId: string;
-  topic: "APP_UNINSTALLED" | "APP_SCOPES_UPDATE";
-  currentScopes?: string[];
-  sessionId?: string;
-}, database: PrismaClient = prisma) => {
+export const processAppWebhook = async (
+  {
+    shop,
+    webhookId,
+    topic,
+    currentScopes,
+    sessionId,
+  }: {
+    shop: string;
+    webhookId: string;
+    topic: "APP_UNINSTALLED" | "APP_SCOPES_UPDATE";
+    currentScopes?: string[];
+    sessionId?: string;
+  },
+  database: PrismaClient = prisma,
+) => {
   try {
     await database.$transaction(async (tx) => {
       await tx.webhookDelivery.create({
@@ -83,15 +89,18 @@ export const processAppWebhook = async ({
   }
 };
 
-export const processComplianceWebhook = async ({
-  shop,
-  webhookId,
-  topic,
-}: {
-  shop: string;
-  webhookId: string;
-  topic: "CUSTOMERS_DATA_REQUEST" | "CUSTOMERS_REDACT" | "SHOP_REDACT";
-}, database: PrismaClient = prisma) => {
+export const processComplianceWebhook = async (
+  {
+    shop,
+    webhookId,
+    topic,
+  }: {
+    shop: string;
+    webhookId: string;
+    topic: "CUSTOMERS_DATA_REQUEST" | "CUSTOMERS_REDACT" | "SHOP_REDACT";
+  },
+  database: PrismaClient = prisma,
+) => {
   if (topic === "SHOP_REDACT") {
     await database.$transaction([
       database.upsellOffer.deleteMany({ where: { shop } }),
@@ -129,7 +138,6 @@ const applyProductUpdate = async (
   const triggerData = {
     ...(title ? { triggerResourceTitle: title } : {}),
     ...(imageUrl ? { triggerImageUrl: imageUrl } : {}),
-    ...(unavailable ? { status: "PAUSED" as const } : {}),
   };
   if (Object.keys(triggerData).length > 0) {
     await tx.upsellOffer.updateMany({
@@ -139,6 +147,42 @@ const applyProductUpdate = async (
         triggerResourceId: { in: [productId, productGid] },
       },
       data: triggerData,
+    });
+    await tx.offerTrigger.updateMany({
+      where: {
+        offer: { shop },
+        resourceType: "PRODUCT",
+        resourceId: { in: [productId, productGid] },
+      },
+      data: {
+        ...(title ? { resourceTitle: title } : {}),
+        ...(imageUrl ? { imageUrl } : {}),
+      },
+    });
+  }
+
+  if (unavailable) {
+    const affected = await tx.upsellOffer.findMany({
+      where: {
+        shop,
+        triggers: {
+          some: {
+            resourceType: "PRODUCT",
+            resourceId: { in: [productId, productGid] },
+          },
+        },
+      },
+      select: { id: true, _count: { select: { triggers: true } } },
+    });
+    await tx.upsellOffer.updateMany({
+      where: {
+        id: {
+          in: affected
+            .filter((offer) => offer._count.triggers === 1)
+            .map((offer) => offer.id),
+        },
+      },
+      data: { status: "PAUSED" },
     });
   }
 
@@ -189,12 +233,31 @@ const applyProductDelete = async (
 ) => {
   const productId = requiredResourceId(payload.id, "product");
   const ids = [productId, toGid("Product", productId)];
+  const affectedTriggerOffers = await tx.upsellOffer.findMany({
+    where: {
+      shop,
+      triggers: {
+        some: { resourceType: "PRODUCT", resourceId: { in: ids } },
+      },
+    },
+    select: { id: true },
+  });
+  await tx.offerTrigger.deleteMany({
+    where: {
+      offer: { shop },
+      resourceType: "PRODUCT",
+      resourceId: { in: ids },
+    },
+  });
   await tx.upsellOffer.updateMany({
     where: {
       shop,
       OR: [
-        { triggerType: "PRODUCT", triggerResourceId: { in: ids } },
         { upsellAction: "SPECIFIC_VARIANT", offerProductId: { in: ids } },
+        {
+          id: { in: affectedTriggerOffers.map((offer) => offer.id) },
+          triggers: { none: {} },
+        },
       ],
     },
     data: { status: "PAUSED" },
@@ -222,6 +285,17 @@ const applyCollectionUpdate = async (
       ...(imageUrl ? { triggerImageUrl: imageUrl } : {}),
     },
   });
+  await tx.offerTrigger.updateMany({
+    where: {
+      offer: { shop },
+      resourceType: "COLLECTION",
+      resourceId: { in: [collectionId, toGid("Collection", collectionId)] },
+    },
+    data: {
+      ...(title ? { resourceTitle: title } : {}),
+      ...(imageUrl ? { imageUrl } : {}),
+    },
+  });
 };
 
 const applyCollectionDelete = async (
@@ -230,13 +304,28 @@ const applyCollectionDelete = async (
   payload: CatalogPayload,
 ) => {
   const collectionId = requiredResourceId(payload.id, "collection");
+  const ids = [collectionId, toGid("Collection", collectionId)];
+  const affectedTriggerOffers = await tx.upsellOffer.findMany({
+    where: {
+      shop,
+      triggers: {
+        some: { resourceType: "COLLECTION", resourceId: { in: ids } },
+      },
+    },
+    select: { id: true },
+  });
+  await tx.offerTrigger.deleteMany({
+    where: {
+      offer: { shop },
+      resourceType: "COLLECTION",
+      resourceId: { in: ids },
+    },
+  });
   await tx.upsellOffer.updateMany({
     where: {
       shop,
-      triggerType: "COLLECTION",
-      triggerResourceId: {
-        in: [collectionId, toGid("Collection", collectionId)],
-      },
+      id: { in: affectedTriggerOffers.map((offer) => offer.id) },
+      triggers: { none: {} },
     },
     data: { status: "PAUSED" },
   });
@@ -267,7 +356,8 @@ const requiredResourceId = (value: unknown, resource: string) => {
     throw new Error(`The ${resource} webhook is missing its resource ID`);
   }
   const id = normalizeShopifyId(value);
-  if (!id) throw new Error(`The ${resource} webhook has an invalid resource ID`);
+  if (!id)
+    throw new Error(`The ${resource} webhook has an invalid resource ID`);
   return id;
 };
 
@@ -285,4 +375,5 @@ const toGid = (resource: string, id: string) =>
   `gid://shopify/${resource}/${id}`;
 
 const isUniqueConstraintError = (error: unknown) =>
-  error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2002";

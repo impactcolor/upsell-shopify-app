@@ -33,6 +33,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
   const pageSize = parsePageSize(url.searchParams.get("pageSize"));
   const requestedPage = parsePositiveInteger(url.searchParams.get("page"), 1);
+  const impressionStatus = parseImpressionStatus(
+    url.searchParams.get("impressionStatus"),
+  );
+  const acceptanceWhere =
+    impressionStatus === "ACCEPTED"
+      ? { accepted: true }
+      : impressionStatus === "NOT_ACCEPTED"
+        ? { accepted: false }
+        : {};
   const dateWhere = { gte: from, lte: to };
   const [events, impressionCount] = await Promise.all([
     prisma.upsellAnalyticsEvent.findMany({
@@ -49,6 +58,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             shop: session.shop,
             offerId: requestedImpressionOfferId,
             eventType: "IMPRESSION",
+            ...acceptanceWhere,
             createdAt: dateWhere,
           },
         })
@@ -62,6 +72,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shop: session.shop,
           offerId: requestedImpressionOfferId,
           eventType: "IMPRESSION",
+          ...acceptanceWhere,
           createdAt: dateWhere,
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -71,34 +82,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           id: true,
           orderId: true,
           orderName: true,
-          referenceHash: true,
           createdAt: true,
         },
       })
     : [];
-  const acceptedEvents =
-    requestedImpressionOfferId && impressionEvents.length > 0
-      ? await prisma.upsellAnalyticsEvent.findMany({
-          where: {
-            shop: session.shop,
-            offerId: requestedImpressionOfferId,
-            eventType: "ACCEPTED",
-            referenceHash: {
-              in: impressionEvents.map((event) => event.referenceHash),
-            },
-          },
-          select: { referenceHash: true },
-        })
-      : [];
-  const acceptedReferences = new Set(
-    acceptedEvents.map((event) => event.referenceHash),
-  );
-  const impressions = impressionEvents.map(
-    ({ referenceHash, ...impression }) => ({
-      ...impression,
-      accepted: acceptedReferences.has(referenceHash),
-    }),
-  );
 
   const names = new Map(offers.map((offer) => [offer.id, offer.name]));
   const summary = summarize(
@@ -142,11 +129,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? {
           offerId: requestedImpressionOfferId,
           offerName: impressionOffer?.name ?? "Deleted offer",
-          impressions,
+          impressions: impressionEvents,
           total: impressionCount,
           page,
           pageCount,
           pageSize,
+          status: impressionStatus,
         }
       : null,
   };
@@ -264,8 +252,27 @@ export default function AnalyticsPage() {
           heading={`Impressions — ${data.impressionDetails.offerName}`}
         >
           <s-stack direction="block" gap="base">
-            <s-stack direction="inline" gap="base" alignItems="end">
-              <Form method="get">
+            <s-button-group gap="none" accessibilityLabel="Impression status">
+              {impressionStatusOptions.map((option) => (
+                <s-button
+                  key={option.value}
+                  href={analyticsHref(data, {
+                    impressionStatus: option.value,
+                    page: 1,
+                  })}
+                  variant={
+                    data.impressionDetails?.status === option.value
+                      ? "primary"
+                      : "tertiary"
+                  }
+                >
+                  {option.label}
+                </s-button>
+              ))}
+            </s-button-group>
+
+            <Form method="get">
+              <s-stack direction="inline" gap="small" alignItems="end">
                 <input type="hidden" name="from" value={data.from} />
                 <input type="hidden" name="to" value={data.to} />
                 <input type="hidden" name="offerId" value={data.offerId} />
@@ -275,26 +282,33 @@ export default function AnalyticsPage() {
                   value={data.impressionDetails.offerId}
                 />
                 <input type="hidden" name="page" value="1" />
-                <s-stack direction="inline" gap="small" alignItems="end">
-                  <s-select
-                    label="Orders per page"
-                    name="pageSize"
-                    value={String(data.impressionDetails.pageSize)}
-                  >
-                    <s-option value="25">25</s-option>
-                    <s-option value="50">50</s-option>
-                    <s-option value="100">100</s-option>
-                  </s-select>
-                  <s-button type="submit">Apply</s-button>
-                </s-stack>
-              </Form>
-              <s-button
-                href={analyticsHref(data, { impressionOfferId: "", page: 1 })}
-                variant="tertiary"
-              >
-                Hide Impressions
-              </s-button>
-            </s-stack>
+                <input
+                  type="hidden"
+                  name="impressionStatus"
+                  value={data.impressionDetails.status}
+                />
+                <s-select
+                  label="Orders per page"
+                  name="pageSize"
+                  value={String(data.impressionDetails.pageSize)}
+                >
+                  <s-option value="25">25</s-option>
+                  <s-option value="50">50</s-option>
+                  <s-option value="100">100</s-option>
+                </s-select>
+                <s-button type="submit">Apply</s-button>
+                <s-button
+                  type="button"
+                  href={analyticsHref(data, {
+                    impressionOfferId: "",
+                    page: 1,
+                  })}
+                  variant="tertiary"
+                >
+                  Hide Impressions
+                </s-button>
+              </s-stack>
+            </Form>
 
             {data.impressionDetails.impressions.length === 0 ? (
               <s-paragraph>
@@ -306,7 +320,6 @@ export default function AnalyticsPage() {
                 <s-table-header-row>
                   <s-table-header listSlot="primary">Order</s-table-header>
                   <s-table-header>Offer displayed</s-table-header>
-                  <s-table-header>Accepted</s-table-header>
                 </s-table-header-row>
                 <s-table-body>
                   {data.impressionDetails.impressions.map((impression) => (
@@ -326,13 +339,6 @@ export default function AnalyticsPage() {
                       <s-table-cell>
                         {formatDateTime(impression.createdAt)}
                       </s-table-cell>
-                      <s-table-cell>
-                        <s-badge
-                          tone={impression.accepted ? "success" : "neutral"}
-                        >
-                          {impression.accepted ? "True" : "False"}
-                        </s-badge>
-                      </s-table-cell>
                     </s-table-row>
                   ))}
                 </s-table-body>
@@ -341,8 +347,9 @@ export default function AnalyticsPage() {
 
             <s-stack direction="block" gap="small" alignItems="center">
               <s-text color="subdued">
-                {data.impressionDetails.total.toLocaleString()} total
-                impressions · Page {data.impressionDetails.page} of{" "}
+                {data.impressionDetails.total.toLocaleString()}{" "}
+                {impressionStatusLabel(data.impressionDetails.status)} · Page{" "}
+                {data.impressionDetails.page} of{" "}
                 {data.impressionDetails.pageCount}
               </s-text>
               {data.impressionDetails.pageCount > 1 ? (
@@ -504,6 +511,27 @@ const parsePositiveInteger = (value: string | null, fallback: number) => {
   return Number.isSafeInteger(number) && number > 0 ? number : fallback;
 };
 
+type ImpressionStatus = "ALL" | "ACCEPTED" | "NOT_ACCEPTED";
+
+const impressionStatusOptions: Array<{
+  value: ImpressionStatus;
+  label: string;
+}> = [
+  { value: "ALL", label: "All" },
+  { value: "ACCEPTED", label: "Accepted" },
+  { value: "NOT_ACCEPTED", label: "Not accepted" },
+];
+
+const parseImpressionStatus = (value: string | null): ImpressionStatus =>
+  value === "ACCEPTED" || value === "NOT_ACCEPTED" ? value : "ALL";
+
+const impressionStatusLabel = (status: ImpressionStatus) =>
+  status === "ACCEPTED"
+    ? "accepted impressions"
+    : status === "NOT_ACCEPTED"
+      ? "not accepted impressions"
+      : "total impressions";
+
 const orderAdminHref = (orderId: string) =>
   `shopify://admin/orders/${orderId.slice(orderId.lastIndexOf("/") + 1)}`;
 
@@ -520,12 +548,17 @@ type AnalyticsLinkData = {
   impressionDetails: null | {
     offerId: string;
     pageSize: number;
+    status: ImpressionStatus;
   };
 };
 
 const analyticsHref = (
   data: AnalyticsLinkData,
-  overrides: { impressionOfferId?: string; page?: number },
+  overrides: {
+    impressionOfferId?: string;
+    impressionStatus?: ImpressionStatus;
+    page?: number;
+  },
 ) => {
   const params = new URLSearchParams({ from: data.from, to: data.to });
   if (data.offerId) params.set("offerId", data.offerId);
@@ -534,6 +567,10 @@ const analyticsHref = (
   if (impressionOfferId) {
     params.set("impressionOfferId", impressionOfferId);
     params.set("pageSize", String(data.impressionDetails?.pageSize ?? 25));
+    params.set(
+      "impressionStatus",
+      overrides.impressionStatus ?? data.impressionDetails?.status ?? "ALL",
+    );
     params.set("page", String(Math.max(1, overrides.page ?? 1)));
   }
   return `/app/analytics?${params.toString()}`;

@@ -165,6 +165,7 @@ model UpsellAnalyticsEvent {
   referenceHash String
   orderId       String?
   orderName     String?
+  accepted      Boolean            @default(false)
   eventType     AnalyticsEventType
   quantity      Int?
   revenue       Decimal?

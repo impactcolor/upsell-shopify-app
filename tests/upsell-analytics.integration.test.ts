@@ -24,6 +24,7 @@ try {
     "referenceHash" TEXT NOT NULL,
     "orderId" TEXT,
     "orderName" TEXT,
+    "accepted" BOOLEAN NOT NULL DEFAULT false,
     "eventType" TEXT NOT NULL,
     "quantity" INTEGER,
     "revenue" DECIMAL,
@@ -89,6 +90,55 @@ try {
   assert.equal(accepted.currencyCode, "USD");
   assert.equal(accepted.orderId, "gid://shopify/Order/12345");
   assert.equal(accepted.orderName, "#1042");
+
+  await recordAnalyticsEvent(
+    {
+      shop,
+      referenceId,
+      offerId,
+      eventType: "IMPRESSION",
+    },
+    database,
+  );
+  assert.equal(
+    (
+      await database.upsellAnalyticsEvent.findFirstOrThrow({
+        where: { eventType: "IMPRESSION" },
+      })
+    ).accepted,
+    true,
+  );
+
+  const laterAcceptedReference = "accepted-after-impression";
+  await recordAnalyticsEvent(
+    {
+      shop,
+      referenceId: laterAcceptedReference,
+      offerId,
+      eventType: "IMPRESSION",
+    },
+    database,
+  );
+  await recordAnalyticsEvent(
+    {
+      shop,
+      referenceId: laterAcceptedReference,
+      offerId,
+      eventType: "ACCEPTED",
+    },
+    database,
+  );
+  assert.equal(
+    (
+      await database.upsellAnalyticsEvent.findFirstOrThrow({
+        where: {
+          eventType: "IMPRESSION",
+          referenceHash: hashReference(laterAcceptedReference),
+        },
+      })
+    ).accepted,
+    true,
+  );
 
   await recordAnalyticsEvent(
     {

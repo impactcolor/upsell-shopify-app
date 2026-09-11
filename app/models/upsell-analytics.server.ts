@@ -25,33 +25,67 @@ export const recordAnalyticsEvent = async (
   const quantity = validQuantity(input.quantity);
   const revenue = validRevenue(input.revenue);
   const orderIdentity = validOrderIdentity(input.orderId, input.orderName);
-  return database.upsellAnalyticsEvent.upsert({
-    where: {
-      shop_offerId_referenceHash_eventType: {
+  const referenceHash = hashReference(input.referenceId);
+
+  return database.$transaction(async (tx) => {
+    const acceptedEvent =
+      input.eventType === "IMPRESSION"
+        ? await tx.upsellAnalyticsEvent.findUnique({
+            where: {
+              shop_offerId_referenceHash_eventType: {
+                shop: input.shop,
+                offerId: input.offerId,
+                referenceHash,
+                eventType: "ACCEPTED",
+              },
+            },
+            select: { id: true },
+          })
+        : null;
+    const event = await tx.upsellAnalyticsEvent.upsert({
+      where: {
+        shop_offerId_referenceHash_eventType: {
+          shop: input.shop,
+          offerId: input.offerId,
+          referenceHash,
+          eventType: input.eventType,
+        },
+      },
+      create: {
         shop: input.shop,
         offerId: input.offerId,
-        referenceHash: hashReference(input.referenceId),
+        referenceHash,
+        ...orderIdentity,
+        accepted: Boolean(acceptedEvent),
         eventType: input.eventType,
+        quantity,
+        revenue,
+        currencyCode: normalizeCurrency(input.currencyCode),
+        failureStage: normalizeFailureStage(input.failureStage),
       },
-    },
-    create: {
-      shop: input.shop,
-      offerId: input.offerId,
-      referenceHash: hashReference(input.referenceId),
-      ...orderIdentity,
-      eventType: input.eventType,
-      quantity,
-      revenue,
-      currencyCode: normalizeCurrency(input.currencyCode),
-      failureStage: normalizeFailureStage(input.failureStage),
-    },
-    update: {
-      ...orderIdentity,
-      quantity,
-      revenue,
-      currencyCode: normalizeCurrency(input.currencyCode),
-      failureStage: normalizeFailureStage(input.failureStage),
-    },
+      update: {
+        ...orderIdentity,
+        ...(acceptedEvent ? { accepted: true } : {}),
+        quantity,
+        revenue,
+        currencyCode: normalizeCurrency(input.currencyCode),
+        failureStage: normalizeFailureStage(input.failureStage),
+      },
+    });
+
+    if (input.eventType === "ACCEPTED") {
+      await tx.upsellAnalyticsEvent.updateMany({
+        where: {
+          shop: input.shop,
+          offerId: input.offerId,
+          referenceHash,
+          eventType: "IMPRESSION",
+        },
+        data: { accepted: true },
+      });
+    }
+
+    return event;
   });
 };
 

@@ -8,11 +8,8 @@ import jwt from "jsonwebtoken";
 
 process.env.SHOPIFY_API_SECRET = "analytics-test-secret";
 
-const {
-  analyticsOfferFromSelection,
-  hashReference,
-  recordAnalyticsEvent,
-} = await import("../app/models/upsell-analytics.server.js");
+const { analyticsOfferFromSelection, hashReference, recordAnalyticsEvent } =
+  await import("../app/models/upsell-analytics.server.js");
 
 const directory = await mkdtemp(join(tmpdir(), "upsell-analytics-test-"));
 const database = new PrismaClient({
@@ -25,6 +22,8 @@ try {
     "shop" TEXT NOT NULL,
     "offerId" TEXT NOT NULL,
     "referenceHash" TEXT NOT NULL,
+    "orderId" TEXT,
+    "orderName" TEXT,
     "eventType" TEXT NOT NULL,
     "quantity" INTEGER,
     "revenue" DECIMAL,
@@ -64,6 +63,8 @@ try {
       quantity: 1,
       revenue: 15,
       currencyCode: "USD",
+      orderId: "gid://shopify/Order/12345",
+      orderName: "#1042",
     },
     database,
   );
@@ -86,6 +87,8 @@ try {
   assert.equal(accepted.quantity, 2);
   assert.equal(accepted.revenue?.toString(), "30");
   assert.equal(accepted.currencyCode, "USD");
+  assert.equal(accepted.orderId, "gid://shopify/Order/12345");
+  assert.equal(accepted.orderName, "#1042");
 
   await recordAnalyticsEvent(
     {
@@ -97,6 +100,8 @@ try {
       revenue: -10,
       currencyCode: "invalid",
       failureStage: "calculate_changeset",
+      orderId: "not-an-order",
+      orderName: "Invalid",
     },
     database,
   );
@@ -107,6 +112,8 @@ try {
   assert.equal(failed.revenue, null);
   assert.equal(failed.currencyCode, null);
   assert.equal(failed.failureStage, "calculate_changeset");
+  assert.equal(failed.orderId, null);
+  assert.equal(failed.orderName, null);
 
   assert.throws(() =>
     analyticsOfferFromSelection({

@@ -4,6 +4,7 @@ import {
   analyticsOfferFromSelection,
   recordAnalyticsEvent,
 } from "../models/upsell-analytics.server";
+import { resolveOrderIdentity } from "../models/order-identity.server";
 import { normalizeShopDomain } from "../models/post-purchase-offer.server";
 import { authenticate } from "../shopify.server";
 
@@ -22,17 +23,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const referenceId = requiredString(body?.referenceId, "referenceId");
     if (String(sessionToken.sub) !== referenceId) {
       return cors(
-        Response.json({ error: "Purchase reference mismatch" }, { status: 403 }),
+        Response.json(
+          { error: "Purchase reference mismatch" },
+          { status: 403 },
+        ),
       );
     }
     const eventType = requiredEvent(body?.eventType);
     const shop = normalizeShopDomain(body?.shop);
-    const selectionToken = requiredString(body?.selectionToken, "selectionToken");
+    const selectionToken = requiredString(
+      body?.selectionToken,
+      "selectionToken",
+    );
     const offerId = analyticsOfferFromSelection({
       shop,
       referenceId,
       selectionToken,
     });
+    const orderIdentity =
+      eventType === "IMPRESSION"
+        ? await resolveOrderIdentity(shop, referenceId)
+        : null;
 
     await recordAnalyticsEvent({
       shop,
@@ -45,6 +56,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         typeof body?.currencyCode === "string" ? body.currencyCode : null,
       failureStage:
         typeof body?.failureStage === "string" ? body.failureStage : null,
+      ...orderIdentity,
     });
     return cors(new Response(null, { status: 204 }));
   } catch (error) {

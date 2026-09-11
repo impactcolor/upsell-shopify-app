@@ -163,6 +163,8 @@ model UpsellAnalyticsEvent {
   shop          String
   offerId       String
   referenceHash String
+  orderId       String?
+  orderName     String?
   eventType     AnalyticsEventType
   quantity      Int?
   revenue       Decimal?

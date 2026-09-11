@@ -14,6 +14,8 @@ type AnalyticsInput = {
   revenue?: number | null;
   currencyCode?: string | null;
   failureStage?: string | null;
+  orderId?: string | null;
+  orderName?: string | null;
 };
 
 export const recordAnalyticsEvent = async (
@@ -22,6 +24,7 @@ export const recordAnalyticsEvent = async (
 ) => {
   const quantity = validQuantity(input.quantity);
   const revenue = validRevenue(input.revenue);
+  const orderIdentity = validOrderIdentity(input.orderId, input.orderName);
   return database.upsellAnalyticsEvent.upsert({
     where: {
       shop_offerId_referenceHash_eventType: {
@@ -35,6 +38,7 @@ export const recordAnalyticsEvent = async (
       shop: input.shop,
       offerId: input.offerId,
       referenceHash: hashReference(input.referenceId),
+      ...orderIdentity,
       eventType: input.eventType,
       quantity,
       revenue,
@@ -42,6 +46,7 @@ export const recordAnalyticsEvent = async (
       failureStage: normalizeFailureStage(input.failureStage),
     },
     update: {
+      ...orderIdentity,
       quantity,
       revenue,
       currencyCode: normalizeCurrency(input.currencyCode),
@@ -103,6 +108,17 @@ const normalizeCurrency = (value: string | null | undefined) =>
 
 const normalizeFailureStage = (value: string | null | undefined) =>
   typeof value === "string" && /^[a-z_]{1,40}$/.test(value) ? value : null;
+
+const validOrderIdentity = (
+  orderId: string | null | undefined,
+  orderName: string | null | undefined,
+) =>
+  typeof orderId === "string" &&
+  /^gid:\/\/shopify\/Order\/\d+$/.test(orderId) &&
+  typeof orderName === "string" &&
+  orderName.trim().length > 0
+    ? { orderId, orderName: orderName.trim().slice(0, 80) }
+    : {};
 
 const requiredSecret = () => {
   const secret = process.env.SHOPIFY_API_SECRET;

@@ -22,14 +22,59 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const offerId = offers.some((offer) => offer.id === requestedOfferId)
     ? requestedOfferId
     : "";
-  const events = await prisma.upsellAnalyticsEvent.findMany({
-    where: {
-      shop: session.shop,
-      createdAt: { gte: from, lte: to },
-      ...(offerId ? { offerId } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const rawImpressionOfferId = url.searchParams.get("impressionOfferId") || "";
+  const requestedImpressionOfferId = /^[a-zA-Z0-9_-]{1,100}$/.test(
+    rawImpressionOfferId,
+  )
+    ? rawImpressionOfferId
+    : "";
+  const impressionOffer = offers.find(
+    (offer) => offer.id === requestedImpressionOfferId,
+  );
+  const pageSize = parsePageSize(url.searchParams.get("pageSize"));
+  const requestedPage = parsePositiveInteger(url.searchParams.get("page"), 1);
+  const dateWhere = { gte: from, lte: to };
+  const [events, impressionCount] = await Promise.all([
+    prisma.upsellAnalyticsEvent.findMany({
+      where: {
+        shop: session.shop,
+        createdAt: dateWhere,
+        ...(offerId ? { offerId } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    requestedImpressionOfferId
+      ? prisma.upsellAnalyticsEvent.count({
+          where: {
+            shop: session.shop,
+            offerId: requestedImpressionOfferId,
+            eventType: "IMPRESSION",
+            createdAt: dateWhere,
+          },
+        })
+      : Promise.resolve(0),
+  ]);
+  const pageCount = Math.max(1, Math.ceil(impressionCount / pageSize));
+  const page = Math.min(requestedPage, pageCount);
+  const impressions = requestedImpressionOfferId
+    ? await prisma.upsellAnalyticsEvent.findMany({
+        where: {
+          shop: session.shop,
+          offerId: requestedImpressionOfferId,
+          eventType: "IMPRESSION",
+          createdAt: dateWhere,
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          orderId: true,
+          orderName: true,
+          createdAt: true,
+        },
+      })
+    : [];
 
   const names = new Map(offers.map((offer) => [offer.id, offer.name]));
   const summary = summarize(
@@ -63,13 +108,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       failed: summary.failed,
       conversionRate: rate(summary.accepted, summary.impressions),
       revenue: summary.revenue,
-      currencyCode: summary.currencyCodes.size === 1
-        ? [...summary.currencyCodes][0]
-        : null,
+      currencyCode:
+        summary.currencyCodes.size === 1 ? [...summary.currencyCodes][0] : null,
       averageOrderValueImpact:
         summary.accepted > 0 ? summary.revenue / summary.accepted : 0,
     },
     byOffer,
+    impressionDetails: requestedImpressionOfferId
+      ? {
+          offerId: requestedImpressionOfferId,
+          offerName: impressionOffer?.name ?? "Deleted offer",
+          impressions,
+          total: impressionCount,
+          page,
+          pageCount,
+          pageSize,
+        }
+      : null,
   };
 };
 
@@ -124,7 +179,8 @@ export default function AnalyticsPage() {
           />
         </s-grid>
         <s-paragraph>
-          Declined: {metrics.declined.toLocaleString()} · Failed: {metrics.failed.toLocaleString()}
+          Declined: {metrics.declined.toLocaleString()} · Failed:{" "}
+          {metrics.failed.toLocaleString()}
         </s-paragraph>
       </s-section>
 
@@ -141,12 +197,15 @@ export default function AnalyticsPage() {
               <s-table-header format="numeric">Accepted</s-table-header>
               <s-table-header format="numeric">Conversion</s-table-header>
               <s-table-header format="currency">Revenue</s-table-header>
+              <s-table-header>Actions</s-table-header>
             </s-table-header-row>
             <s-table-body>
               {data.byOffer.map((offer) => (
                 <s-table-row key={offer.id}>
                   <s-table-cell>{offer.name}</s-table-cell>
-                  <s-table-cell>{offer.impressions.toLocaleString()}</s-table-cell>
+                  <s-table-cell>
+                    {offer.impressions.toLocaleString()}
+                  </s-table-cell>
                   <s-table-cell>{offer.accepted.toLocaleString()}</s-table-cell>
                   <s-table-cell>{offer.conversionRate}%</s-table-cell>
                   <s-table-cell>
@@ -157,6 +216,18 @@ export default function AnalyticsPage() {
                         : null,
                     )}
                   </s-table-cell>
+                  <s-table-cell>
+                    <s-button
+                      href={analyticsHref(data, {
+                        impressionOfferId: offer.id,
+                        page: 1,
+                      })}
+                      variant="tertiary"
+                      disabled={offer.impressions === 0}
+                    >
+                      Show Impressions
+                    </s-button>
+                  </s-table-cell>
                 </s-table-row>
               ))}
             </s-table-body>
@@ -164,10 +235,140 @@ export default function AnalyticsPage() {
         )}
       </s-section>
 
+      {data.impressionDetails ? (
+        <s-section
+          heading={`Impressions — ${data.impressionDetails.offerName}`}
+        >
+          <s-stack direction="block" gap="base">
+            <s-stack direction="inline" gap="base" alignItems="end">
+              <Form method="get">
+                <input type="hidden" name="from" value={data.from} />
+                <input type="hidden" name="to" value={data.to} />
+                <input type="hidden" name="offerId" value={data.offerId} />
+                <input
+                  type="hidden"
+                  name="impressionOfferId"
+                  value={data.impressionDetails.offerId}
+                />
+                <input type="hidden" name="page" value="1" />
+                <s-stack direction="inline" gap="small" alignItems="end">
+                  <s-select
+                    label="Orders per page"
+                    name="pageSize"
+                    value={String(data.impressionDetails.pageSize)}
+                  >
+                    <s-option value="25">25</s-option>
+                    <s-option value="50">50</s-option>
+                    <s-option value="100">100</s-option>
+                  </s-select>
+                  <s-button type="submit">Apply</s-button>
+                </s-stack>
+              </Form>
+              <s-button
+                href={analyticsHref(data, { impressionOfferId: "", page: 1 })}
+                variant="tertiary"
+              >
+                Hide Impressions
+              </s-button>
+            </s-stack>
+
+            {data.impressionDetails.impressions.length === 0 ? (
+              <s-paragraph>
+                No impressions were recorded for this offer in the selected date
+                range.
+              </s-paragraph>
+            ) : (
+              <s-table>
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">Order</s-table-header>
+                  <s-table-header>Offer displayed</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                  {data.impressionDetails.impressions.map((impression) => (
+                    <s-table-row key={impression.id}>
+                      <s-table-cell>
+                        {impression.orderId && impression.orderName ? (
+                          <s-link
+                            href={orderAdminHref(impression.orderId)}
+                            target="_top"
+                          >
+                            {impression.orderName}
+                          </s-link>
+                        ) : (
+                          <s-text color="subdued">Order unavailable</s-text>
+                        )}
+                      </s-table-cell>
+                      <s-table-cell>
+                        {formatDateTime(impression.createdAt)}
+                      </s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
+            )}
+
+            <s-stack direction="block" gap="small" alignItems="center">
+              <s-text color="subdued">
+                {data.impressionDetails.total.toLocaleString()} total
+                impressions · Page {data.impressionDetails.page} of{" "}
+                {data.impressionDetails.pageCount}
+              </s-text>
+              {data.impressionDetails.pageCount > 1 ? (
+                <s-button-group accessibilityLabel="Impression pages">
+                  <s-button
+                    href={analyticsHref(data, {
+                      page: data.impressionDetails.page - 1,
+                    })}
+                    disabled={data.impressionDetails.page === 1}
+                  >
+                    Previous
+                  </s-button>
+                  {paginationItems(
+                    data.impressionDetails.page,
+                    data.impressionDetails.pageCount,
+                  ).map((item, index) =>
+                    item === null ? (
+                      <s-button key={`ellipsis-${index}`} disabled>
+                        …
+                      </s-button>
+                    ) : (
+                      <s-button
+                        key={item}
+                        href={analyticsHref(data, { page: item })}
+                        variant={
+                          item === data.impressionDetails?.page
+                            ? "primary"
+                            : "tertiary"
+                        }
+                      >
+                        {item}
+                      </s-button>
+                    ),
+                  )}
+                  <s-button
+                    href={analyticsHref(data, {
+                      page: data.impressionDetails.page + 1,
+                    })}
+                    disabled={
+                      data.impressionDetails.page ===
+                      data.impressionDetails.pageCount
+                    }
+                  >
+                    Next
+                  </s-button>
+                </s-button-group>
+              ) : null}
+            </s-stack>
+          </s-stack>
+        </s-section>
+      ) : null}
+
       <s-section slot="aside" heading="Privacy">
         <s-paragraph>
-          Analytics contain offer events and a one-way purchase-reference hash.
-          No buyer identity, address, or raw order reference is stored.
+          Analytics contain offer events, a one-way purchase-reference hash, and
+          the Shopify order ID and display number for impressions. No buyer
+          identity, address, payment details, or raw checkout reference is
+          stored.
         </s-paragraph>
       </s-section>
     </s-page>
@@ -226,7 +427,11 @@ const summarize = (events: SummaryEvent[]) => {
 const rate = (accepted: number, impressions: number) =>
   impressions > 0 ? Math.round((accepted / impressions) * 10_000) / 100 : 0;
 
-const parseDate = (value: string | null, fallback: Date, endOfDate: boolean) => {
+const parseDate = (
+  value: string | null,
+  fallback: Date,
+  endOfDate: boolean,
+) => {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(fallback);
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return new Date(fallback);
@@ -256,3 +461,63 @@ const formatRevenue = (amount: number, currencyCode: string | null) =>
     : amount === 0
       ? "$0.00"
       : `${amount.toFixed(2)} (mixed currencies)`;
+
+const parsePageSize = (value: string | null) => {
+  const size = Number(value);
+  return size === 50 || size === 100 ? size : 25;
+};
+
+const parsePositiveInteger = (value: string | null, fallback: number) => {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : fallback;
+};
+
+const orderAdminHref = (orderId: string) =>
+  `shopify://admin/orders/${orderId.slice(orderId.lastIndexOf("/") + 1)}`;
+
+const formatDateTime = (value: string | Date) =>
+  new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+
+type AnalyticsLinkData = {
+  from: string;
+  to: string;
+  offerId: string;
+  impressionDetails: null | {
+    offerId: string;
+    pageSize: number;
+  };
+};
+
+const analyticsHref = (
+  data: AnalyticsLinkData,
+  overrides: { impressionOfferId?: string; page?: number },
+) => {
+  const params = new URLSearchParams({ from: data.from, to: data.to });
+  if (data.offerId) params.set("offerId", data.offerId);
+  const impressionOfferId =
+    overrides.impressionOfferId ?? data.impressionDetails?.offerId ?? "";
+  if (impressionOfferId) {
+    params.set("impressionOfferId", impressionOfferId);
+    params.set("pageSize", String(data.impressionDetails?.pageSize ?? 25));
+    params.set("page", String(Math.max(1, overrides.page ?? 1)));
+  }
+  return `/app/analytics?${params.toString()}`;
+};
+
+const paginationItems = (page: number, pageCount: number) => {
+  const pages = new Set([1, pageCount]);
+  for (let candidate = page - 2; candidate <= page + 2; candidate += 1) {
+    if (candidate > 0 && candidate <= pageCount) pages.add(candidate);
+  }
+  const sorted = [...pages].sort((left, right) => left - right);
+  const items: Array<number | null> = [];
+  for (const item of sorted) {
+    const previous = items.at(-1);
+    if (typeof previous === "number" && item - previous > 1) items.push(null);
+    items.push(item);
+  }
+  return items;
+};

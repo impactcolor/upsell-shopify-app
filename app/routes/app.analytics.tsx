@@ -290,6 +290,7 @@ export default function AnalyticsPage() {
                 gridTemplateColumns="minmax(180px, 240px) max-content max-content"
                 gap="small"
                 alignItems="end"
+                justifyContent="start"
               >
                 <s-select
                   label="Orders per page"

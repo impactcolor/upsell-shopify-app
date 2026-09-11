@@ -56,7 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ]);
   const pageCount = Math.max(1, Math.ceil(impressionCount / pageSize));
   const page = Math.min(requestedPage, pageCount);
-  const impressions = requestedImpressionOfferId
+  const impressionEvents = requestedImpressionOfferId
     ? await prisma.upsellAnalyticsEvent.findMany({
         where: {
           shop: session.shop,
@@ -71,10 +71,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           id: true,
           orderId: true,
           orderName: true,
+          referenceHash: true,
           createdAt: true,
         },
       })
     : [];
+  const acceptedEvents =
+    requestedImpressionOfferId && impressionEvents.length > 0
+      ? await prisma.upsellAnalyticsEvent.findMany({
+          where: {
+            shop: session.shop,
+            offerId: requestedImpressionOfferId,
+            eventType: "ACCEPTED",
+            referenceHash: {
+              in: impressionEvents.map((event) => event.referenceHash),
+            },
+          },
+          select: { referenceHash: true },
+        })
+      : [];
+  const acceptedReferences = new Set(
+    acceptedEvents.map((event) => event.referenceHash),
+  );
+  const impressions = impressionEvents.map(
+    ({ referenceHash, ...impression }) => ({
+      ...impression,
+      accepted: acceptedReferences.has(referenceHash),
+    }),
+  );
 
   const names = new Map(offers.map((offer) => [offer.id, offer.name]));
   const summary = summarize(
@@ -282,6 +306,7 @@ export default function AnalyticsPage() {
                 <s-table-header-row>
                   <s-table-header listSlot="primary">Order</s-table-header>
                   <s-table-header>Offer displayed</s-table-header>
+                  <s-table-header>Accepted</s-table-header>
                 </s-table-header-row>
                 <s-table-body>
                   {data.impressionDetails.impressions.map((impression) => (
@@ -300,6 +325,13 @@ export default function AnalyticsPage() {
                       </s-table-cell>
                       <s-table-cell>
                         {formatDateTime(impression.createdAt)}
+                      </s-table-cell>
+                      <s-table-cell>
+                        <s-badge
+                          tone={impression.accepted ? "success" : "neutral"}
+                        >
+                          {impression.accepted ? "True" : "False"}
+                        </s-badge>
                       </s-table-cell>
                     </s-table-row>
                   ))}

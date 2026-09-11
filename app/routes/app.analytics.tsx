@@ -287,7 +287,7 @@ export default function AnalyticsPage() {
                 value={data.impressionDetails.status}
               />
               <s-grid
-                gridTemplateColumns="minmax(180px, 240px) auto auto"
+                gridTemplateColumns="minmax(180px, 240px) max-content max-content"
                 gap="small"
                 alignItems="end"
               >

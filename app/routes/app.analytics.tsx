@@ -252,7 +252,7 @@ export default function AnalyticsPage() {
           heading={`Impressions — ${data.impressionDetails.offerName}`}
         >
           <s-stack direction="block" gap="base">
-            <s-button-group gap="none" accessibilityLabel="Impression status">
+            <s-grid gridTemplateColumns="repeat(3, max-content)" gap="small">
               {impressionStatusOptions.map((option) => (
                 <s-button
                   key={option.value}
@@ -263,30 +263,34 @@ export default function AnalyticsPage() {
                   variant={
                     data.impressionDetails?.status === option.value
                       ? "primary"
-                      : "tertiary"
+                      : "secondary"
                   }
                 >
                   {option.label}
                 </s-button>
               ))}
-            </s-button-group>
+            </s-grid>
 
             <Form method="get">
-              <s-stack direction="inline" gap="small" alignItems="end">
-                <input type="hidden" name="from" value={data.from} />
-                <input type="hidden" name="to" value={data.to} />
-                <input type="hidden" name="offerId" value={data.offerId} />
-                <input
-                  type="hidden"
-                  name="impressionOfferId"
-                  value={data.impressionDetails.offerId}
-                />
-                <input type="hidden" name="page" value="1" />
-                <input
-                  type="hidden"
-                  name="impressionStatus"
-                  value={data.impressionDetails.status}
-                />
+              <input type="hidden" name="from" value={data.from} />
+              <input type="hidden" name="to" value={data.to} />
+              <input type="hidden" name="offerId" value={data.offerId} />
+              <input
+                type="hidden"
+                name="impressionOfferId"
+                value={data.impressionDetails.offerId}
+              />
+              <input type="hidden" name="page" value="1" />
+              <input
+                type="hidden"
+                name="impressionStatus"
+                value={data.impressionDetails.status}
+              />
+              <s-grid
+                gridTemplateColumns="minmax(180px, 240px) auto auto"
+                gap="small"
+                alignItems="end"
+              >
                 <s-select
                   label="Orders per page"
                   name="pageSize"
@@ -307,7 +311,7 @@ export default function AnalyticsPage() {
                 >
                   Hide Impressions
                 </s-button>
-              </s-stack>
+              </s-grid>
             </Form>
 
             {data.impressionDetails.impressions.length === 0 ? (
@@ -353,7 +357,12 @@ export default function AnalyticsPage() {
                 {data.impressionDetails.pageCount}
               </s-text>
               {data.impressionDetails.pageCount > 1 ? (
-                <s-button-group accessibilityLabel="Impression pages">
+                <s-stack
+                  direction="inline"
+                  gap="small"
+                  alignItems="center"
+                  justifyContent="center"
+                >
                   <s-button
                     href={analyticsHref(data, {
                       page: data.impressionDetails.page - 1,
@@ -395,7 +404,7 @@ export default function AnalyticsPage() {
                   >
                     Next
                   </s-button>
-                </s-button-group>
+                </s-stack>
               ) : null}
             </s-stack>
           </s-stack>

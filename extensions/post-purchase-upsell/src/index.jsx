@@ -324,6 +324,34 @@ function OfferApp({ extensionInput, offer }) {
     imageFit: offer.content?.imageFit === "cover" ? "cover" : "contain",
     benefitsImageFit:
       offer.content?.benefitsImageFit === "contain" ? "contain" : "cover",
+    layoutWidth:
+      offer.content?.layoutWidth === "narrow"
+        ? "narrow"
+        : offer.content?.layoutWidth === "wide"
+          ? "wide"
+          : "standard",
+    contentPadding:
+      offer.content?.contentPadding === "none"
+        ? undefined
+        : offer.content?.contentPadding === "compact"
+          ? "tight"
+          : offer.content?.contentPadding === "spacious"
+            ? "loose"
+            : "base",
+    productImageAspect:
+      offer.content?.productImageAspect === "landscape"
+        ? 1.45
+        : offer.content?.productImageAspect === "portrait"
+          ? 0.8
+          : 1,
+    showProductImageBorder: offer.content?.showProductImageBorder !== false,
+    bannerBorder: offer.content?.bannerBorder === "none" ? "none" : "block",
+    bannerSpacing:
+      offer.content?.bannerSpacing === "none"
+        ? "none"
+        : offer.content?.bannerSpacing === "loose"
+          ? "loose"
+          : "tight",
     customContentSections: Array.isArray(offer.content?.customContentSections)
       ? offer.content.customContentSections
           .filter((section) => section && section.enabled !== false)
@@ -518,10 +546,22 @@ function OfferApp({ extensionInput, offer }) {
     bundleOfferTotal === null
       ? null
       : Math.max(0, bundleRegularTotal - bundleOfferTotal);
+  const largeLayoutWidth =
+    content.layoutWidth === "narrow"
+      ? 720
+      : content.layoutWidth === "wide"
+        ? 1080
+        : 900;
+  const mediumLayoutWidth =
+    content.layoutWidth === "narrow"
+      ? 0.75
+      : content.layoutWidth === "wide"
+        ? 0.95
+        : 0.85;
   const centeredSectionMedia = [
     { viewportSize: "small", maxInlineSize: 0.95, sizes: [1] },
-    { viewportSize: "medium", maxInlineSize: 0.85, sizes: [1] },
-    { viewportSize: "large", maxInlineSize: 900, sizes: [1] },
+    { viewportSize: "medium", maxInlineSize: mediumLayoutWidth, sizes: [1] },
+    { viewportSize: "large", maxInlineSize: largeLayoutWidth, sizes: [1] },
   ];
   const layoutMedia = content.showProductImage
     ? [
@@ -532,12 +572,12 @@ function OfferApp({ extensionInput, offer }) {
         },
         {
           viewportSize: "medium",
-          maxInlineSize: 0.85,
+          maxInlineSize: mediumLayoutWidth,
           sizes: [0.48, 0.04, "fill"],
         },
         {
           viewportSize: "large",
-          maxInlineSize: 900,
+          maxInlineSize: largeLayoutWidth,
           sizes: [0.48, 0.04, "fill"],
         },
       ]
@@ -549,12 +589,12 @@ function OfferApp({ extensionInput, offer }) {
         },
         {
           viewportSize: "medium",
-          maxInlineSize: 0.85,
+          maxInlineSize: mediumLayoutWidth,
           sizes: [0, 0, 1],
         },
         {
           viewportSize: "large",
-          maxInlineSize: 900,
+          maxInlineSize: largeLayoutWidth,
           sizes: [0, 0, 1],
         },
       ];
@@ -566,12 +606,12 @@ function OfferApp({ extensionInput, offer }) {
     },
     {
       viewportSize: "medium",
-      maxInlineSize: 0.85,
+      maxInlineSize: mediumLayoutWidth,
       sizes: [0.52, 0.03, "fill"],
     },
     {
       viewportSize: "large",
-      maxInlineSize: 900,
+      maxInlineSize: largeLayoutWidth,
       sizes: [0.52, 0.03, "fill"],
     },
   ];
@@ -616,8 +656,8 @@ function OfferApp({ extensionInput, offer }) {
       <Image
         source={primaryImageUrl}
         description={candidate.productTitle}
-        bordered
-        aspectRatio={1}
+        bordered={content.showProductImageBorder}
+        aspectRatio={content.productImageAspect}
         fit={content.imageFit}
       />
     ) : null;
@@ -631,9 +671,9 @@ function OfferApp({ extensionInput, offer }) {
               <Image
                 source={imageUrl}
                 description={`${candidate.productTitle} view ${index + 1}`}
-                bordered
+                bordered={content.showProductImageBorder}
                 loading={index === 0 ? undefined : "lazy"}
-                aspectRatio={1}
+                aspectRatio={content.productImageAspect}
                 fit="contain"
               />
             </View>
@@ -864,162 +904,170 @@ function OfferApp({ extensionInput, offer }) {
   );
 
   return (
-    <BlockStack spacing={content.contentSpacing}>
-      {renderCustomContentSections("header_image")}
+    <View
+      inlinePadding={content.contentPadding}
+      blockPadding={content.contentPadding}
+    >
+      <BlockStack spacing={content.contentSpacing}>
+        {renderCustomContentSections("header_image")}
 
-      {content.showHeadline ||
-      (content.descriptionPlacement === "top_banner" && content.description) ? (
-        <Layout media={centeredSectionMedia}>
-          <CalloutBanner
-            title={content.showHeadline ? content.headline : undefined}
-            background={content.bannerBackground}
-            alignment="center"
-          >
-            {content.descriptionPlacement === "top_banner"
-              ? content.description
-              : null}
-          </CalloutBanner>
-        </Layout>
-      ) : null}
-
-      {renderCustomContentSections("before_offer")}
-
-      {content.imagePosition === "above" ? (
-        <Layout media={centeredSectionMedia}>
-          <BlockStack spacing="loose" alignment="center">
-            {productGallery}
-            {offerDetails}
-          </BlockStack>
-        </Layout>
-      ) : (
-        <Layout media={layoutMedia}>
-          <View>{productGallery}</View>
-          <View />
-          {offerDetails}
-        </Layout>
-      )}
-
-      {renderCustomContentSections("after_offer")}
-
-      {content.showBenefitsSection &&
-      benefitHeading &&
-      content.showProductImage &&
-      supportingImageUrl ? (
-        <Layout media={benefitLayoutMedia}>
-          <View>
-            <Image
-              source={supportingImageUrl}
-              description={`${candidate.productTitle} lifestyle view`}
-              loading="lazy"
-              aspectRatio={1.45}
-              fit={content.benefitsImageFit}
-            />
-          </View>
-          <View />
-          <View>
+        {content.showHeadline ||
+        (content.descriptionPlacement === "top_banner" &&
+          content.description) ? (
+          <Layout media={centeredSectionMedia}>
             <CalloutBanner
-              title={benefitHeading}
-              background="transparent"
-              alignment="leading"
-              border="none"
-              spacing="loose"
+              title={content.showHeadline ? content.headline : undefined}
+              background={content.bannerBackground}
+              alignment={content.bannerAlignment}
+              border={content.bannerBorder}
+              spacing={content.bannerSpacing}
             >
-              <BlockStack spacing="tight">
-                <TextBlock>{content.description}</TextBlock>
-                {benefitItems.map((item) => (
-                  <TextBlock key={item}>• {item}</TextBlock>
-                ))}
-              </BlockStack>
+              {content.descriptionPlacement === "top_banner"
+                ? content.description
+                : null}
             </CalloutBanner>
-          </View>
-        </Layout>
-      ) : content.showBenefitsSection && benefitHeading ? (
-        <Layout media={centeredSectionMedia}>
-          <BlockStack spacing="loose" alignment="center">
+          </Layout>
+        ) : null}
+
+        {renderCustomContentSections("before_offer")}
+
+        {content.imagePosition === "above" ? (
+          <Layout media={centeredSectionMedia}>
+            <BlockStack spacing="loose" alignment="center">
+              {productGallery}
+              {offerDetails}
+            </BlockStack>
+          </Layout>
+        ) : (
+          <Layout media={layoutMedia}>
+            <View>{productGallery}</View>
+            <View />
+            {offerDetails}
+          </Layout>
+        )}
+
+        {renderCustomContentSections("after_offer")}
+
+        {content.showBenefitsSection &&
+        benefitHeading &&
+        content.showProductImage &&
+        supportingImageUrl ? (
+          <Layout media={benefitLayoutMedia}>
+            <View>
+              <Image
+                source={supportingImageUrl}
+                description={`${candidate.productTitle} lifestyle view`}
+                loading="lazy"
+                aspectRatio={1.45}
+                fit={content.benefitsImageFit}
+              />
+            </View>
+            <View />
+            <View>
+              <CalloutBanner
+                title={benefitHeading}
+                background="transparent"
+                alignment="leading"
+                border="none"
+                spacing="loose"
+              >
+                <BlockStack spacing="tight">
+                  <TextBlock>{content.description}</TextBlock>
+                  {benefitItems.map((item) => (
+                    <TextBlock key={item}>• {item}</TextBlock>
+                  ))}
+                </BlockStack>
+              </CalloutBanner>
+            </View>
+          </Layout>
+        ) : content.showBenefitsSection && benefitHeading ? (
+          <Layout media={centeredSectionMedia}>
+            <BlockStack spacing="loose" alignment="center">
+              <CalloutBanner
+                title={benefitHeading}
+                background="transparent"
+                alignment="center"
+                border="none"
+                spacing="loose"
+              >
+                <BlockStack spacing="tight">
+                  <TextBlock>{content.description}</TextBlock>
+                  {benefitItems.map((item) => (
+                    <TextBlock key={item}>• {item}</TextBlock>
+                  ))}
+                </BlockStack>
+              </CalloutBanner>
+            </BlockStack>
+          </Layout>
+        ) : null}
+
+        {renderCustomContentSections("between_sections")}
+
+        {content.showComparisonSection &&
+        offer.maxQuantity > 1 &&
+        bundleOfferTotal !== null ? (
+          <Layout media={centeredSectionMedia}>
             <CalloutBanner
-              title={benefitHeading}
+              title={`${offer.maxQuantity} MORE FOR ${formatCurrency(
+                bundleOfferTotal,
+                currencyCode,
+              )}`}
               background="transparent"
               alignment="center"
-              border="none"
-              spacing="loose"
             >
-              <BlockStack spacing="tight">
-                <TextBlock>{content.description}</TextBlock>
-                {benefitItems.map((item) => (
-                  <TextBlock key={item}>• {item}</TextBlock>
-                ))}
+              <BlockStack spacing="loose">
+                <Tiles>
+                  <TextContainer alignment="center">
+                    <TextBlock emphasized>1 item</TextBlock>
+                    <TextBlock subdued>Regular price</TextBlock>
+                    <TextBlock emphasized>
+                      {formatCurrency(candidate.originalPrice, currencyCode)}
+                    </TextBlock>
+                  </TextContainer>
+                  <TextContainer alignment="center">
+                    <TextBlock emphasized>{offer.maxQuantity} items</TextBlock>
+                    <TextBlock subdued>Regular price</TextBlock>
+                    <TextBlock>
+                      <Text role="deletion" subdued>
+                        {formatCurrency(bundleRegularTotal, currencyCode)}
+                      </Text>
+                    </TextBlock>
+                  </TextContainer>
+                  <TextContainer alignment="center">
+                    <TextBlock emphasized>Your offer</TextBlock>
+                    <TextBlock appearance="success">
+                      {formatCurrency(bundleOfferTotal, currencyCode)}
+                    </TextBlock>
+                    {bundleSavings !== null && bundleSavings > 0 ? (
+                      <TextBlock emphasized>
+                        SAVE {formatCurrency(bundleSavings, currencyCode)}
+                      </TextBlock>
+                    ) : null}
+                  </TextContainer>
+                </Tiles>
+                <TextBlock subdued>
+                  {bundleOffer
+                    ? `This offer includes all ${offer.maxQuantity} items.`
+                    : `Select ${offer.maxQuantity} above to claim the full bundle.`}
+                </TextBlock>
               </BlockStack>
             </CalloutBanner>
-          </BlockStack>
-        </Layout>
-      ) : null}
+          </Layout>
+        ) : null}
 
-      {renderCustomContentSections("between_sections")}
-
-      {content.showComparisonSection &&
-      offer.maxQuantity > 1 &&
-      bundleOfferTotal !== null ? (
-        <Layout media={centeredSectionMedia}>
-          <CalloutBanner
-            title={`${offer.maxQuantity} MORE FOR ${formatCurrency(
-              bundleOfferTotal,
-              currencyCode,
-            )}`}
-            background="transparent"
-            alignment="center"
-          >
-            <BlockStack spacing="loose">
-              <Tiles>
-                <TextContainer alignment="center">
-                  <TextBlock emphasized>1 item</TextBlock>
-                  <TextBlock subdued>Regular price</TextBlock>
-                  <TextBlock emphasized>
-                    {formatCurrency(candidate.originalPrice, currencyCode)}
-                  </TextBlock>
-                </TextContainer>
-                <TextContainer alignment="center">
-                  <TextBlock emphasized>{offer.maxQuantity} items</TextBlock>
-                  <TextBlock subdued>Regular price</TextBlock>
-                  <TextBlock>
-                    <Text role="deletion" subdued>
-                      {formatCurrency(bundleRegularTotal, currencyCode)}
-                    </Text>
-                  </TextBlock>
-                </TextContainer>
-                <TextContainer alignment="center">
-                  <TextBlock emphasized>Your offer</TextBlock>
-                  <TextBlock appearance="success">
-                    {formatCurrency(bundleOfferTotal, currencyCode)}
-                  </TextBlock>
-                  {bundleSavings !== null && bundleSavings > 0 ? (
-                    <TextBlock emphasized>
-                      SAVE {formatCurrency(bundleSavings, currencyCode)}
-                    </TextBlock>
-                  ) : null}
-                </TextContainer>
-              </Tiles>
+        {content.showFooterNote ? (
+          <Layout media={centeredSectionMedia}>
+            <TextContainer alignment="center">
+              <Separator />
               <TextBlock subdued>
-                {bundleOffer
-                  ? `This offer includes all ${offer.maxQuantity} items.`
-                  : `Select ${offer.maxQuantity} above to claim the full bundle.`}
+                This offer is available only on this page and cannot be added
+                later.
               </TextBlock>
-            </BlockStack>
-          </CalloutBanner>
-        </Layout>
-      ) : null}
-
-      {content.showFooterNote ? (
-        <Layout media={centeredSectionMedia}>
-          <TextContainer alignment="center">
-            <Separator />
-            <TextBlock subdued>
-              This offer is available only on this page and cannot be added
-              later.
-            </TextBlock>
-          </TextContainer>
-        </Layout>
-      ) : null}
-    </BlockStack>
+            </TextContainer>
+          </Layout>
+        ) : null}
+      </BlockStack>
+    </View>
   );
 }
 

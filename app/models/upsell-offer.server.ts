@@ -286,6 +286,33 @@ export const parseOfferForm = (formData: FormData) => {
     optionalString(formData, "benefitsImageFit") === "CONTAIN"
       ? "CONTAIN"
       : "COVER";
+  const rawLayoutWidth = optionalString(formData, "layoutWidth");
+  const layoutWidth =
+    rawLayoutWidth === "NARROW" || rawLayoutWidth === "WIDE"
+      ? rawLayoutWidth
+      : "STANDARD";
+  const rawContentPadding = optionalString(formData, "contentPadding");
+  const contentPadding = ["NONE", "COMPACT", "SPACIOUS"].includes(
+    rawContentPadding ?? "",
+  )
+    ? rawContentPadding!
+    : "COMFORTABLE";
+  const rawProductImageAspect = optionalString(formData, "productImageAspect");
+  const productImageAspect =
+    rawProductImageAspect === "LANDSCAPE" ||
+    rawProductImageAspect === "PORTRAIT"
+      ? rawProductImageAspect
+      : "SQUARE";
+  const showProductImageBorder = formData.has("contentSettingsPresent")
+    ? formData.getAll("showProductImageBorder").includes("true")
+    : true;
+  const bannerBorder =
+    optionalString(formData, "bannerBorder") === "NONE" ? "NONE" : "BLOCK";
+  const rawBannerSpacing = optionalString(formData, "bannerSpacing");
+  const bannerSpacing =
+    rawBannerSpacing === "NONE" || rawBannerSpacing === "LOOSE"
+      ? rawBannerSpacing
+      : "TIGHT";
 
   if (discountValue <= 0) {
     throw new Error("Discount value must be greater than zero");
@@ -393,6 +420,12 @@ export const parseOfferForm = (formData: FormData) => {
     headingSize,
     imageFit,
     benefitsImageFit,
+    layoutWidth,
+    contentPadding,
+    productImageAspect,
+    showProductImageBorder,
+    bannerBorder,
+    bannerSpacing,
     status,
   };
 };

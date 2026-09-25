@@ -122,6 +122,12 @@ export type PostPurchaseOfferPayload = {
       headingSize: "medium" | "large" | "xlarge";
       imageFit: "contain" | "cover";
       benefitsImageFit: "contain" | "cover";
+      layoutWidth: "narrow" | "standard" | "wide";
+      contentPadding: "none" | "compact" | "comfortable" | "spacious";
+      productImageAspect: "square" | "landscape" | "portrait";
+      showProductImageBorder: boolean;
+      bannerBorder: "block" | "none";
+      bannerSpacing: "none" | "tight" | "loose";
       customContentSections: Array<{
         id: string;
         desktopImageUrl: string | null;
@@ -313,6 +319,34 @@ export const getEligiblePostPurchaseOffer = async ({
             imageFit: offer.imageFit === "COVER" ? "cover" : "contain",
             benefitsImageFit:
               offer.benefitsImageFit === "CONTAIN" ? "contain" : "cover",
+            layoutWidth:
+              offer.layoutWidth === "NARROW"
+                ? "narrow"
+                : offer.layoutWidth === "WIDE"
+                  ? "wide"
+                  : "standard",
+            contentPadding:
+              offer.contentPadding === "NONE"
+                ? "none"
+                : offer.contentPadding === "COMPACT"
+                  ? "compact"
+                  : offer.contentPadding === "SPACIOUS"
+                    ? "spacious"
+                    : "comfortable",
+            productImageAspect:
+              offer.productImageAspect === "LANDSCAPE"
+                ? "landscape"
+                : offer.productImageAspect === "PORTRAIT"
+                  ? "portrait"
+                  : "square",
+            showProductImageBorder: offer.showProductImageBorder,
+            bannerBorder: offer.bannerBorder === "NONE" ? "none" : "block",
+            bannerSpacing:
+              offer.bannerSpacing === "NONE"
+                ? "none"
+                : offer.bannerSpacing === "LOOSE"
+                  ? "loose"
+                  : "tight",
             customContentSections: offer.customContentSections.map(
               (section) => ({
                 id: section.id,

@@ -60,56 +60,62 @@ enum AnalyticsEventType {
 }
 
 model UpsellOffer {
-  id                    String                 @id @default(cuid())
-  shop                  String
-  name                  String
-  triggerType           TriggerType            @default(PRODUCT)
-  triggerResourceId     String
-  triggerResourceTitle  String
-  triggerImageUrl       String?
-  upsellAction          UpsellAction           @default(SPECIFIC_VARIANT)
-  offerProductId        String?
-  offerProductTitle     String?
-  offerVariantId        String?
-  offerVariantTitle     String?
-  offerImageUrl         String?
-  offerPrice            Decimal?
-  offerCurrencyCode     String                 @default("USD")
-  discountType          DiscountType           @default(PERCENTAGE)
-  discountValue         Decimal
-  maxQuantity           Int                    @default(1)
-  headline              String                 @default("It’s not too late to add another")
-  showHeadline          Boolean                @default(true)
-  offerDescription      String                 @default("Get another qualifying item with this exclusive post-purchase offer.")
-  descriptionPlacement  String                 @default("TOP_BANNER")
-  acceptButtonText      String                 @default("Add to my order")
-  declineButtonText     String                 @default("No thanks")
-  customMessage         String?
-  confirmationMessage   String                 @default("Your order has been updated.")
-  showProductImage      Boolean                @default(true)
-  showVariantSelector   Boolean                @default(true)
-  showQuantitySelector  Boolean                @default(true)
-  bannerBackground      String                 @default("SECONDARY")
-  bannerAlignment       String                 @default("CENTER")
-  imagePosition         String                 @default("LEFT")
-  savingsStyle          String                 @default("HIGHLIGHTED")
-  savingsLabel          String                 @default("POST-PURCHASE OFFER")
-  showSavingsLabel      Boolean                @default(true)
-  benefitsImageUrl      String?
-  showThumbnails        Boolean                @default(true)
-  showBenefitsSection   Boolean                @default(true)
-  showComparisonSection Boolean                @default(true)
-  showFooterNote        Boolean                @default(true)
-  contentSpacing        String                 @default("COMFORTABLE")
-  headingSize           String                 @default("LARGE")
-  imageFit              String                 @default("CONTAIN")
-  benefitsImageFit      String                 @default("COVER")
-  status                OfferStatus            @default(DRAFT)
-  shopifyDiscountId     String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  customContentSections CustomContentSection[]
-  triggers              OfferTrigger[]
+  id                     String                 @id @default(cuid())
+  shop                   String
+  name                   String
+  triggerType            TriggerType            @default(PRODUCT)
+  triggerResourceId      String
+  triggerResourceTitle   String
+  triggerImageUrl        String?
+  upsellAction           UpsellAction           @default(SPECIFIC_VARIANT)
+  offerProductId         String?
+  offerProductTitle      String?
+  offerVariantId         String?
+  offerVariantTitle      String?
+  offerImageUrl          String?
+  offerPrice             Decimal?
+  offerCurrencyCode      String                 @default("USD")
+  discountType           DiscountType           @default(PERCENTAGE)
+  discountValue          Decimal
+  maxQuantity            Int                    @default(1)
+  headline               String                 @default("It’s not too late to add another")
+  showHeadline           Boolean                @default(true)
+  offerDescription       String                 @default("Get another qualifying item with this exclusive post-purchase offer.")
+  descriptionPlacement   String                 @default("TOP_BANNER")
+  acceptButtonText       String                 @default("Add to my order")
+  declineButtonText      String                 @default("No thanks")
+  customMessage          String?
+  confirmationMessage    String                 @default("Your order has been updated.")
+  showProductImage       Boolean                @default(true)
+  showVariantSelector    Boolean                @default(true)
+  showQuantitySelector   Boolean                @default(true)
+  bannerBackground       String                 @default("SECONDARY")
+  bannerAlignment        String                 @default("CENTER")
+  imagePosition          String                 @default("LEFT")
+  savingsStyle           String                 @default("HIGHLIGHTED")
+  savingsLabel           String                 @default("POST-PURCHASE OFFER")
+  showSavingsLabel       Boolean                @default(true)
+  benefitsImageUrl       String?
+  showThumbnails         Boolean                @default(true)
+  showBenefitsSection    Boolean                @default(true)
+  showComparisonSection  Boolean                @default(true)
+  showFooterNote         Boolean                @default(true)
+  contentSpacing         String                 @default("COMFORTABLE")
+  headingSize            String                 @default("LARGE")
+  imageFit               String                 @default("CONTAIN")
+  benefitsImageFit       String                 @default("COVER")
+  layoutWidth            String                 @default("STANDARD")
+  contentPadding         String                 @default("COMFORTABLE")
+  productImageAspect     String                 @default("SQUARE")
+  showProductImageBorder Boolean                @default(true)
+  bannerBorder           String                 @default("BLOCK")
+  bannerSpacing          String                 @default("TIGHT")
+  status                 OfferStatus            @default(DRAFT)
+  shopifyDiscountId      String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  customContentSections  CustomContentSection[]
+  triggers               OfferTrigger[]
 
   @@index([shop, status])
   @@index([shop, triggerType, triggerResourceId])

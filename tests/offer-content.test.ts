@@ -42,6 +42,12 @@ assert.equal(defaults.savingsStyle, "HIGHLIGHTED");
 assert.equal(defaults.savingsLabel, "");
 assert.equal(defaults.showSavingsLabel, true);
 assert.equal(defaults.showFooterNote, true);
+assert.equal(defaults.layoutWidth, "STANDARD");
+assert.equal(defaults.contentPadding, "COMFORTABLE");
+assert.equal(defaults.productImageAspect, "SQUARE");
+assert.equal(defaults.showProductImageBorder, true);
+assert.equal(defaults.bannerBorder, "BLOCK");
+assert.equal(defaults.bannerSpacing, "TIGHT");
 
 assert.deepEqual(parseOfferTriggers(baseForm()), [
   {
@@ -135,6 +141,11 @@ customForm.set("savingsLabel", "TODAY ONLY");
 customForm.set("showSavingsLabel", "true");
 customForm.set("showFooterNote", "true");
 customForm.set("showVariantSelector", "true");
+customForm.set("layoutWidth", "WIDE");
+customForm.set("contentPadding", "SPACIOUS");
+customForm.set("productImageAspect", "LANDSCAPE");
+customForm.set("bannerBorder", "NONE");
+customForm.set("bannerSpacing", "LOOSE");
 
 const custom = parseOfferForm(customForm);
 assert.equal(custom.headline, "A second one, just for you");
@@ -161,6 +172,12 @@ assert.equal(custom.showHeadline, false);
 assert.equal(custom.savingsLabel, "TODAY ONLY");
 assert.equal(custom.showSavingsLabel, true);
 assert.equal(custom.showFooterNote, true);
+assert.equal(custom.layoutWidth, "WIDE");
+assert.equal(custom.contentPadding, "SPACIOUS");
+assert.equal(custom.productImageAspect, "LANDSCAPE");
+assert.equal(custom.showProductImageBorder, false);
+assert.equal(custom.bannerBorder, "NONE");
+assert.equal(custom.bannerSpacing, "LOOSE");
 assert.equal(
   custom.offerImageUrl,
   "https://cdn.shopify.com/s/files/offer-image.png",

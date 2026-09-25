@@ -274,6 +274,18 @@ export default function OfferDetailsPage() {
   const [benefitsImageFit, setBenefitsImageFit] = useState(
     savedOffer.benefitsImageFit,
   );
+  const [layoutWidth, setLayoutWidth] = useState(savedOffer.layoutWidth);
+  const [contentPadding, setContentPadding] = useState(
+    savedOffer.contentPadding,
+  );
+  const [productImageAspect, setProductImageAspect] = useState(
+    savedOffer.productImageAspect,
+  );
+  const [showProductImageBorder, setShowProductImageBorder] = useState(
+    savedOffer.showProductImageBorder,
+  );
+  const [bannerBorder, setBannerBorder] = useState(savedOffer.bannerBorder);
+  const [bannerSpacing, setBannerSpacing] = useState(savedOffer.bannerSpacing);
   const [customContentSections, setCustomContentSections] = useState<
     CustomContentSectionEditor[]
   >(
@@ -914,7 +926,40 @@ export default function OfferDetailsPage() {
             />
 
             <s-divider />
-            <s-heading>Layout and appearance</s-heading>
+            <s-heading>Front-end styling</s-heading>
+            <s-banner heading="Shopify-safe appearance controls" tone="info">
+              Shopify does not allow custom CSS on post-purchase pages. These
+              settings provide the supported CSS-like controls for the offer
+              area. Checkout fonts, colors, and payment-button styling continue
+              to follow the store&apos;s checkout branding.
+            </s-banner>
+
+            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+              <s-select
+                name="layoutWidth"
+                label="Offer width"
+                value={layoutWidth}
+                onChange={(event) => setLayoutWidth(event.currentTarget.value)}
+              >
+                <s-option value="NARROW">Narrow</s-option>
+                <s-option value="STANDARD">Standard</s-option>
+                <s-option value="WIDE">Wide</s-option>
+              </s-select>
+              <s-select
+                name="contentPadding"
+                label="Outer padding"
+                value={contentPadding}
+                onChange={(event) =>
+                  setContentPadding(event.currentTarget.value)
+                }
+              >
+                <s-option value="NONE">None</s-option>
+                <s-option value="COMPACT">Compact</s-option>
+                <s-option value="COMFORTABLE">Comfortable</s-option>
+                <s-option value="SPACIOUS">Spacious</s-option>
+              </s-select>
+            </s-grid>
+
             <s-grid gridTemplateColumns="1fr 1fr" gap="base">
               <s-select
                 name="bannerBackground"
@@ -937,6 +982,30 @@ export default function OfferDetailsPage() {
               >
                 <s-option value="CENTER">Centered</s-option>
                 <s-option value="LEADING">Left aligned</s-option>
+              </s-select>
+            </s-grid>
+
+            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+              <s-select
+                name="bannerBorder"
+                label="Banner border"
+                value={bannerBorder}
+                onChange={(event) => setBannerBorder(event.currentTarget.value)}
+              >
+                <s-option value="BLOCK">Top and bottom border</s-option>
+                <s-option value="NONE">No border</s-option>
+              </s-select>
+              <s-select
+                name="bannerSpacing"
+                label="Banner content spacing"
+                value={bannerSpacing}
+                onChange={(event) =>
+                  setBannerSpacing(event.currentTarget.value)
+                }
+              >
+                <s-option value="NONE">None</s-option>
+                <s-option value="TIGHT">Tight</s-option>
+                <s-option value="LOOSE">Loose</s-option>
               </s-select>
             </s-grid>
 
@@ -1027,6 +1096,30 @@ export default function OfferDetailsPage() {
                 <s-option value="COVER">Crop to fill</s-option>
                 <s-option value="CONTAIN">Show entire image</s-option>
               </s-select>
+            </s-grid>
+
+            <s-grid gridTemplateColumns="1fr 1fr" gap="base">
+              <s-select
+                name="productImageAspect"
+                label="Main image shape"
+                value={productImageAspect}
+                onChange={(event) =>
+                  setProductImageAspect(event.currentTarget.value)
+                }
+              >
+                <s-option value="SQUARE">Square</s-option>
+                <s-option value="LANDSCAPE">Landscape</s-option>
+                <s-option value="PORTRAIT">Portrait</s-option>
+              </s-select>
+              <s-checkbox
+                name="showProductImageBorder"
+                value="true"
+                label="Show border around product images"
+                checked={showProductImageBorder}
+                onChange={(event) =>
+                  setShowProductImageBorder(event.currentTarget.checked)
+                }
+              />
             </s-grid>
 
             <s-heading>Benefits image</s-heading>
